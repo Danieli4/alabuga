@@ -13,7 +13,11 @@
 ## Быстрый старт в Docker
 
 1. Установите Docker и Docker Compose.
-2. Скопируйте `.env.example` в `.env` (файл появится после сборки) и при необходимости поменяйте настройки.
+2. Скопируйте пример конфигурации и при необходимости измените значения:
+   ```bash
+   cp backend/.env.example backend/.env
+   cp frontend/.env.example frontend/.env
+   ```
 3. Запустите окружение:
    ```bash
    docker compose up --build
@@ -21,6 +25,8 @@
 4. После запуска будут доступны сервисы:
    - API: http://localhost:8000 (документация Swagger — `/docs`).
    - Фронтенд: http://localhost:3000.
+
+Docker Compose автоматически переопределяет `ALABUGA_SQLITE_PATH=/data/app.db`, чтобы база сохранялась во внешнем volume. Для локального запуска вне Docker оставьте путь `./data/app.db` из примера.
 
 ## Локальная разработка backend
 
@@ -30,9 +36,16 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
 
-# применяем миграции и создаём демо-данные
+# подготовьте переменные окружения (однократно)
+cp .env.example .env
+
+# применяем миграции
 alembic upgrade head
+
+# создаём демо-данные (команда выполняется из корня репозитория)
+cd ..
 python -m scripts.seed_data
+cd backend
 
 # Запуск API
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -43,6 +56,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```bash
 cd frontend
 npm install
+cp .env.example .env
 npm run dev
 ```
 
