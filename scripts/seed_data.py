@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT / 'backend'))
 
+from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.session import SessionLocal, engine
 from app.models.artifact import Artifact, ArtifactRarity
@@ -20,7 +21,7 @@ from app.models.rank import Rank, RankCompetencyRequirement, RankMissionRequirem
 from app.models.store import StoreItem
 from app.models.user import Competency, CompetencyCategory, User, UserCompetency, UserRole
 
-DATA_SENTINEL = Path("/data/.seeded")
+DATA_SENTINEL = settings.sqlite_path.parent / ".seeded"
 
 
 def ensure_database() -> None:

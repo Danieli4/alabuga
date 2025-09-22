@@ -6,10 +6,13 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+BASE_DIR = Path(__file__).resolve().parents[2]
+
+
 class Settings(BaseSettings):
     """Глобальные настройки сервиса."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="ALABUGA_", extra="ignore")
+    model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", env_prefix="ALABUGA_", extra="ignore")
 
     project_name: str = "Alabuga Gamification API"
     environment: str = "local"
@@ -33,6 +36,10 @@ def get_settings() -> Settings:
     """Кэшируем создание настроек, чтобы не читать файл каждый раз."""
 
     settings = Settings()
+
+    if not settings.sqlite_path.is_absolute():
+        settings.sqlite_path = (BASE_DIR / settings.sqlite_path).resolve()
+
     settings.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
     return settings
 

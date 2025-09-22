@@ -27,7 +27,7 @@ interface RankResponse {
 async function fetchProfile() {
   const token = await getDemoToken();
   const profile = await apiFetch<ProfileResponse>('/api/me', { authToken: token });
-  const ranks = await apiFetch<RankResponse[]>('/api/admin/ranks', { authToken: token });
+  const ranks = await apiFetch<RankResponse[]>('/api/ranks', { authToken: token });
   const currentRank = ranks.find((rank) => rank.id === profile.current_rank_id);
   return { token, profile, currentRank };
 }
