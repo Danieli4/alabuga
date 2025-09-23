@@ -12,7 +12,7 @@ interface Submission {
 }
 
 async function fetchModerationQueue() {
-  const token = await getDemoToken();
+  const token = await getDemoToken('hr');
   const submissions = await apiFetch<Submission[]>('/api/admin/submissions', { authToken: token });
   return submissions;
 }
