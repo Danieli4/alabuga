@@ -3,74 +3,47 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import require_hr
 from app.db.session import get_db
-from app.models.branch import BranchMission
-from app.models.mission import Mission, MissionCompetencyReward, MissionPrerequisite, MissionSubmission, SubmissionStatus
-from app.models.rank import Rank
-from app.schemas.mission import MissionBase, MissionCreate, MissionDetail, MissionSubmissionRead
-from app.schemas.rank import RankBase
+from app.models.artifact import Artifact
+from app.models.branch import Branch, BranchMission
+from app.models.mission import (
+    Mission,
+    MissionCompetencyReward,
+    MissionPrerequisite,
+    MissionSubmission,
+    SubmissionStatus,
+)
+from app.models.rank import Rank, RankCompetencyRequirement, RankMissionRequirement
+from app.models.user import Competency
+from app.schemas.artifact import ArtifactRead
+from app.schemas.branch import BranchCreate, BranchMissionRead, BranchRead, BranchUpdate
+from app.schemas.mission import (
+    MissionBase,
+    MissionCreate,
+    MissionDetail,
+    MissionSubmissionRead,
+    MissionUpdate,
+)
+from app.schemas.rank import (
+    RankBase,
+    RankCreate,
+    RankDetailed,
+    RankRequirementCompetency,
+    RankRequirementMission,
+    RankUpdate,
+)
+from app.schemas.user import CompetencyBase
 from app.services.mission import approve_submission, reject_submission
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
-@router.get("/missions", response_model=list[MissionBase], summary="Миссии (HR)")
-def admin_missions(*, db: Session = Depends(get_db), current_user=Depends(require_hr)) -> list[MissionBase]:
-    """Список всех миссий для HR."""
-
-    missions = db.query(Mission).order_by(Mission.title).all()
-    return [MissionBase.model_validate(mission) for mission in missions]
-
-
-@router.post("/missions", response_model=MissionDetail, summary="Создать миссию")
-def create_mission_endpoint(
-    mission_in: MissionCreate,
-    *,
-    db: Session = Depends(get_db),
-    current_user=Depends(require_hr),
-) -> MissionDetail:
-    """Создаём новую миссию."""
-
-    mission = Mission(
-        title=mission_in.title,
-        description=mission_in.description,
-        xp_reward=mission_in.xp_reward,
-        mana_reward=mission_in.mana_reward,
-        difficulty=mission_in.difficulty,
-        minimum_rank_id=mission_in.minimum_rank_id,
-        artifact_id=mission_in.artifact_id,
-    )
-    db.add(mission)
-    db.flush()
-
-    for reward in mission_in.competency_rewards:
-        db.add(
-            MissionCompetencyReward(
-                mission_id=mission.id,
-                competency_id=reward.competency_id,
-                level_delta=reward.level_delta,
-            )
-        )
-
-    for prerequisite_id in mission_in.prerequisite_ids:
-        db.add(
-            MissionPrerequisite(mission_id=mission.id, required_mission_id=prerequisite_id)
-        )
-
-    if mission_in.branch_id:
-        db.add(
-            BranchMission(
-                branch_id=mission_in.branch_id,
-                mission_id=mission.id,
-                order=mission_in.branch_order,
-            )
-        )
-
-    db.commit()
-    db.refresh(mission)
+def _mission_to_detail(mission: Mission) -> MissionDetail:
+    """Формируем детальную схему миссии."""
 
     return MissionDetail(
         id=mission.id,
@@ -96,12 +69,416 @@ def create_mission_endpoint(
     )
 
 
+def _rank_to_detailed(rank: Rank) -> RankDetailed:
+    """Формируем ранг со списком требований."""
+
+    return RankDetailed(
+        id=rank.id,
+        title=rank.title,
+        description=rank.description,
+        required_xp=rank.required_xp,
+        mission_requirements=[
+            RankRequirementMission(mission_id=req.mission_id, mission_title=req.mission.title)
+            for req in rank.mission_requirements
+        ],
+        competency_requirements=[
+            RankRequirementCompetency(
+                competency_id=req.competency_id,
+                competency_name=req.competency.name,
+                required_level=req.required_level,
+            )
+            for req in rank.competency_requirements
+        ],
+        created_at=rank.created_at,
+        updated_at=rank.updated_at,
+    )
+
+
+def _branch_to_read(branch: Branch) -> BranchRead:
+    """Формируем схему ветки с отсортированными миссиями."""
+
+    missions = sorted(branch.missions, key=lambda item: item.order)
+    return BranchRead(
+        id=branch.id,
+        title=branch.title,
+        description=branch.description,
+        category=branch.category,
+        missions=[
+            BranchMissionRead(
+                mission_id=item.mission_id,
+                mission_title=item.mission.title if item.mission else "",
+                order=item.order,
+            )
+            for item in missions
+        ],
+    )
+
+
+def _load_rank(db: Session, rank_id: int) -> Rank:
+    """Загружаем ранг с зависимостями."""
+
+    return (
+        db.query(Rank)
+        .options(
+            selectinload(Rank.mission_requirements).selectinload(RankMissionRequirement.mission),
+            selectinload(Rank.competency_requirements).selectinload(RankCompetencyRequirement.competency),
+        )
+        .filter(Rank.id == rank_id)
+        .one()
+    )
+
+
+def _load_mission(db: Session, mission_id: int) -> Mission:
+    """Загружаем миссию с зависимостями."""
+
+    return (
+        db.query(Mission)
+        .options(
+            selectinload(Mission.prerequisites),
+            selectinload(Mission.competency_rewards).selectinload(MissionCompetencyReward.competency),
+            selectinload(Mission.branches),
+        )
+        .filter(Mission.id == mission_id)
+        .one()
+    )
+
+
+@router.get("/missions", response_model=list[MissionBase], summary="Миссии (HR)")
+def admin_missions(*, db: Session = Depends(get_db), current_user=Depends(require_hr)) -> list[MissionBase]:
+    """Список всех миссий для HR."""
+
+    missions = db.query(Mission).order_by(Mission.title).all()
+    return [MissionBase.model_validate(mission) for mission in missions]
+
+
+@router.get("/missions/{mission_id}", response_model=MissionDetail, summary="Детали миссии")
+def admin_mission_detail(
+    mission_id: int,
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> MissionDetail:
+    """Детальная карточка миссии."""
+
+    mission = (
+        db.query(Mission)
+        .options(
+            selectinload(Mission.prerequisites),
+            selectinload(Mission.competency_rewards).selectinload(MissionCompetencyReward.competency),
+            selectinload(Mission.branches),
+        )
+        .filter(Mission.id == mission_id)
+        .first()
+    )
+    if not mission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Миссия не найдена")
+    return _mission_to_detail(mission)
+
+
+@router.get("/branches", response_model=list[BranchRead], summary="Ветки миссий")
+def admin_branches(*, db: Session = Depends(get_db), current_user=Depends(require_hr)) -> list[BranchRead]:
+    """Возвращаем ветки с миссиями."""
+
+    branches = (
+        db.query(Branch)
+        .options(selectinload(Branch.missions).selectinload(BranchMission.mission))
+        .order_by(Branch.title)
+        .all()
+    )
+    return [_branch_to_read(branch) for branch in branches]
+
+
+@router.post("/branches", response_model=BranchRead, summary="Создать ветку")
+def create_branch(
+    branch_in: BranchCreate,
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> BranchRead:
+    """Создаём новую ветку."""
+
+    branch = Branch(
+        title=branch_in.title,
+        description=branch_in.description,
+        category=branch_in.category,
+    )
+    db.add(branch)
+    db.commit()
+    db.refresh(branch)
+    return _branch_to_read(branch)
+
+
+@router.put("/branches/{branch_id}", response_model=BranchRead, summary="Обновить ветку")
+def update_branch(
+    branch_id: int,
+    branch_in: BranchUpdate,
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> BranchRead:
+    """Редактируем ветку."""
+
+    branch = db.query(Branch).filter(Branch.id == branch_id).first()
+    if not branch:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ветка не найдена")
+
+    branch.title = branch_in.title
+    branch.description = branch_in.description
+    branch.category = branch_in.category
+
+    db.commit()
+    db.refresh(branch)
+    return _branch_to_read(branch)
+
+
+@router.get(
+    "/competencies",
+    response_model=list[CompetencyBase],
+    summary="Каталог компетенций",
+)
+def list_competencies(
+    *, db: Session = Depends(get_db), current_user=Depends(require_hr)
+) -> list[CompetencyBase]:
+    """Справочник компетенций для форм HR."""
+
+    competencies = db.query(Competency).order_by(Competency.name).all()
+    return [CompetencyBase.model_validate(competency) for competency in competencies]
+
+
+@router.get("/artifacts", response_model=list[ArtifactRead], summary="Каталог артефактов")
+def list_artifacts(
+    *, db: Session = Depends(get_db), current_user=Depends(require_hr)
+) -> list[ArtifactRead]:
+    """Справочник артефактов."""
+
+    artifacts = db.query(Artifact).order_by(Artifact.name).all()
+    return [ArtifactRead.model_validate(artifact) for artifact in artifacts]
+
+
+@router.post("/missions", response_model=MissionDetail, summary="Создать миссию")
+def create_mission_endpoint(
+    mission_in: MissionCreate,
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> MissionDetail:
+    """Создаём новую миссию."""
+
+    mission = Mission(
+        title=mission_in.title,
+        description=mission_in.description,
+        xp_reward=mission_in.xp_reward,
+        mana_reward=mission_in.mana_reward,
+        difficulty=mission_in.difficulty,
+        minimum_rank_id=mission_in.minimum_rank_id,
+        artifact_id=mission_in.artifact_id,
+    )
+    db.add(mission)
+    db.flush()
+
+    for reward in mission_in.competency_rewards:
+        mission.competency_rewards.append(
+            MissionCompetencyReward(
+                mission_id=mission.id,
+                competency_id=reward.competency_id,
+                level_delta=reward.level_delta,
+            )
+        )
+
+    for prerequisite_id in mission_in.prerequisite_ids:
+        mission.prerequisites.append(
+            MissionPrerequisite(mission_id=mission.id, required_mission_id=prerequisite_id)
+        )
+
+    if mission_in.branch_id:
+        mission.branches.append(
+            BranchMission(
+                branch_id=mission_in.branch_id,
+                mission_id=mission.id,
+                order=mission_in.branch_order,
+            )
+        )
+
+    db.commit()
+
+    mission = _load_mission(db, mission.id)
+
+    return _mission_to_detail(mission)
+
+
+@router.put("/missions/{mission_id}", response_model=MissionDetail, summary="Обновить миссию")
+def update_mission_endpoint(
+    mission_id: int,
+    mission_in: MissionUpdate,
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> MissionDetail:
+    """Редактируем миссию."""
+
+    mission = (
+        db.query(Mission)
+        .options(
+            selectinload(Mission.prerequisites),
+            selectinload(Mission.competency_rewards),
+            selectinload(Mission.branches),
+        )
+        .filter(Mission.id == mission_id)
+        .first()
+    )
+    if not mission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Миссия не найдена")
+
+    payload = mission_in.model_dump(exclude_unset=True)
+
+    for attr in ["title", "description", "xp_reward", "mana_reward", "difficulty", "is_active"]:
+        if attr in payload:
+            setattr(mission, attr, payload[attr])
+
+    if "minimum_rank_id" in payload:
+        mission.minimum_rank_id = payload["minimum_rank_id"]
+
+    if "artifact_id" in payload:
+        mission.artifact_id = payload["artifact_id"]
+
+    if "competency_rewards" in payload:
+        mission.competency_rewards.clear()
+        for reward in payload["competency_rewards"]:
+            mission.competency_rewards.append(
+                MissionCompetencyReward(
+                    mission_id=mission.id,
+                    competency_id=reward.competency_id,
+                    level_delta=reward.level_delta,
+                )
+            )
+
+    if "prerequisite_ids" in payload:
+        mission.prerequisites.clear()
+        for prerequisite_id in payload["prerequisite_ids"]:
+            mission.prerequisites.append(
+                MissionPrerequisite(mission_id=mission.id, required_mission_id=prerequisite_id)
+            )
+
+    if "branch_id" in payload:
+        mission.branches.clear()
+        branch_id = payload["branch_id"]
+        if branch_id is not None:
+            order = payload.get("branch_order", 1)
+            mission.branches.append(
+                BranchMission(branch_id=branch_id, mission_id=mission.id, order=order)
+            )
+    elif "branch_order" in payload and mission.branches:
+        mission.branches[0].order = payload["branch_order"]
+
+    db.commit()
+
+    mission = _load_mission(db, mission.id)
+    return _mission_to_detail(mission)
+
+
 @router.get("/ranks", response_model=list[RankBase], summary="Список рангов")
 def admin_ranks(*, db: Session = Depends(get_db), current_user=Depends(require_hr)) -> list[RankBase]:
     """Перечень рангов."""
 
     ranks = db.query(Rank).order_by(Rank.required_xp).all()
     return [RankBase.model_validate(rank) for rank in ranks]
+
+
+@router.get("/ranks/{rank_id}", response_model=RankDetailed, summary="Детали ранга")
+def get_rank(
+    rank_id: int,
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> RankDetailed:
+    """Возвращаем подробную информацию о ранге."""
+
+    try:
+        rank = _load_rank(db, rank_id)
+    except NoResultFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ранг не найден") from exc
+    return _rank_to_detailed(rank)
+
+
+@router.post("/ranks", response_model=RankDetailed, summary="Создать ранг")
+def create_rank(
+    rank_in: RankCreate,
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> RankDetailed:
+    """Создаём новый ранг с требованиями."""
+
+    rank = Rank(title=rank_in.title, description=rank_in.description, required_xp=rank_in.required_xp)
+    db.add(rank)
+    db.flush()
+
+    for mission_id in rank_in.mission_ids:
+        rank.mission_requirements.append(
+            RankMissionRequirement(rank_id=rank.id, mission_id=mission_id)
+        )
+
+    for item in rank_in.competency_requirements:
+        rank.competency_requirements.append(
+            RankCompetencyRequirement(
+                rank_id=rank.id,
+                competency_id=item.competency_id,
+                required_level=item.required_level,
+            )
+        )
+
+    db.commit()
+
+    rank = _load_rank(db, rank.id)
+    return _rank_to_detailed(rank)
+
+
+@router.put("/ranks/{rank_id}", response_model=RankDetailed, summary="Обновить ранг")
+def update_rank(
+    rank_id: int,
+    rank_in: RankUpdate,
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> RankDetailed:
+    """Редактируем параметры ранга."""
+
+    rank = (
+        db.query(Rank)
+        .options(
+            selectinload(Rank.mission_requirements),
+            selectinload(Rank.competency_requirements),
+        )
+        .filter(Rank.id == rank_id)
+        .first()
+    )
+    if not rank:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ранг не найден")
+
+    rank.title = rank_in.title
+    rank.description = rank_in.description
+    rank.required_xp = rank_in.required_xp
+
+    rank.mission_requirements.clear()
+    for mission_id in rank_in.mission_ids:
+        rank.mission_requirements.append(
+            RankMissionRequirement(rank_id=rank.id, mission_id=mission_id)
+        )
+
+    rank.competency_requirements.clear()
+    for item in rank_in.competency_requirements:
+        rank.competency_requirements.append(
+            RankCompetencyRequirement(
+                rank_id=rank.id,
+                competency_id=item.competency_id,
+                required_level=item.required_level,
+            )
+        )
+
+    db.commit()
+
+    rank = _load_rank(db, rank.id)
+    return _rank_to_detailed(rank)
 
 
 @router.get(

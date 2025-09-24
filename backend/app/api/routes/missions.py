@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
+from app.models.branch import Branch, BranchMission
 from app.models.mission import Mission, MissionSubmission
 from app.models.user import User
+from app.schemas.branch import BranchMissionRead, BranchRead
 from app.schemas.mission import (
     MissionBase,
     MissionDetail,
@@ -18,6 +20,38 @@ from app.schemas.mission import (
 from app.services.mission import submit_mission
 
 router = APIRouter(prefix="/api/missions", tags=["missions"])
+
+
+@router.get("/branches", response_model=list[BranchRead], summary="Список веток миссий")
+def list_branches(
+    *, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+) -> list[BranchRead]:
+    """Возвращаем ветки с упорядоченными миссиями."""
+
+    branches = (
+        db.query(Branch)
+        .options(selectinload(Branch.missions).selectinload(BranchMission.mission))
+        .order_by(Branch.title)
+        .all()
+    )
+
+    return [
+        BranchRead(
+            id=branch.id,
+            title=branch.title,
+            description=branch.description,
+            category=branch.category,
+            missions=[
+                BranchMissionRead(
+                    mission_id=item.mission_id,
+                    mission_title=item.mission.title if item.mission else "",
+                    order=item.order,
+                )
+                for item in sorted(branch.missions, key=lambda link: link.order)
+            ],
+        )
+        for branch in branches
+    ]
 
 
 @router.get("/", response_model=list[MissionBase], summary="Список миссий")

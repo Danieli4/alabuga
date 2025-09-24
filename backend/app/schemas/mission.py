@@ -68,6 +68,23 @@ class MissionCreate(BaseModel):
     branch_order: int = 1
 
 
+class MissionUpdate(BaseModel):
+    """Схема обновления миссии."""
+
+    title: Optional[str] = None
+    description: Optional[str] = None
+    xp_reward: Optional[int] = None
+    mana_reward: Optional[int] = None
+    difficulty: Optional[MissionDifficulty] = None
+    minimum_rank_id: Optional[int | None] = None
+    artifact_id: Optional[int | None] = None
+    prerequisite_ids: Optional[list[int]] = None
+    competency_rewards: Optional[list[MissionCreateReward]] = None
+    branch_id: Optional[int | None] = None
+    branch_order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
 class MissionSubmissionCreate(BaseModel):
     """Отправка отчёта по миссии."""
 

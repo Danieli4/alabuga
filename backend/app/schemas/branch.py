@@ -24,3 +24,17 @@ class BranchRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class BranchCreate(BaseModel):
+    """Создание ветки."""
+
+    title: str
+    description: str
+    category: str
+
+
+class BranchUpdate(BranchCreate):
+    """Обновление ветки."""
+
+    pass
