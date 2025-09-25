@@ -17,6 +17,8 @@ interface MissionDetail {
     competency_name: string;
     level_delta: number;
   }>;
+  is_available: boolean;
+  locked_reasons: string[];
 }
 
 async function fetchMission(id: number) {
@@ -41,6 +43,16 @@ export default async function MissionPage({ params }: MissionPageProps) {
       <p style={{ marginTop: '1rem' }}>
         Награда: {mission.xp_reward} XP · {mission.mana_reward} ⚡
       </p>
+      {!mission.is_available && mission.locked_reasons.length > 0 && (
+        <div className="card" style={{ border: '1px solid rgba(255, 118, 117, 0.5)', background: 'rgba(255,118,117,0.1)' }}>
+          <strong>Миссия заблокирована</strong>
+          <ul style={{ marginTop: '0.5rem' }}>
+            {mission.locked_reasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="card">
         <h3>Компетенции</h3>
         <ul style={{ listStyle: 'none', padding: 0 }}>
@@ -52,7 +64,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
           {mission.competency_rewards.length === 0 && <li>Нет прокачки компетенций.</li>}
         </ul>
       </div>
-      <MissionSubmissionForm missionId={mission.id} token={token} />
+      <MissionSubmissionForm missionId={mission.id} token={token} locked={!mission.is_available} />
     </section>
   );
 }

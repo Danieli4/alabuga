@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session, selectinload
 
@@ -18,8 +19,8 @@ from app.models.mission import (
     SubmissionStatus,
 )
 from app.models.rank import Rank, RankCompetencyRequirement, RankMissionRequirement
-from app.models.user import Competency
-from app.schemas.artifact import ArtifactRead
+from app.models.user import Competency, User, UserRole
+from app.schemas.artifact import ArtifactCreate, ArtifactRead, ArtifactUpdate
 from app.schemas.branch import BranchCreate, BranchMissionRead, BranchRead, BranchUpdate
 from app.schemas.mission import (
     MissionBase,
@@ -38,6 +39,7 @@ from app.schemas.rank import (
 )
 from app.schemas.user import CompetencyBase
 from app.services.mission import approve_submission, reject_submission
+from app.schemas.admin_stats import AdminDashboardStats, BranchCompletionStat, SubmissionStats
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -108,9 +110,13 @@ def _branch_to_read(branch: Branch) -> BranchRead:
                 mission_id=item.mission_id,
                 mission_title=item.mission.title if item.mission else "",
                 order=item.order,
+                is_completed=False,
+                is_available=True,
             )
             for item in missions
         ],
+        total_missions=len(missions),
+        completed_missions=0,
     )
 
 
@@ -253,6 +259,144 @@ def list_artifacts(
 
     artifacts = db.query(Artifact).order_by(Artifact.name).all()
     return [ArtifactRead.model_validate(artifact) for artifact in artifacts]
+
+
+@router.get("/stats", response_model=AdminDashboardStats, summary="Сводная аналитика")
+def dashboard_stats(
+    *, db: Session = Depends(get_db), current_user=Depends(require_hr)
+) -> AdminDashboardStats:
+    """Основные метрики прогресса и активности пользователей."""
+
+    total_pilots = db.query(User).filter(User.role == UserRole.PILOT).count()
+    approved_submissions = db.query(MissionSubmission).filter(
+        MissionSubmission.status == SubmissionStatus.APPROVED
+    )
+    active_pilots = (
+        approved_submissions.with_entities(MissionSubmission.user_id).distinct().count()
+    )
+
+    completed_counts = approved_submissions.with_entities(
+        MissionSubmission.user_id, func.count(MissionSubmission.id)
+    ).group_by(MissionSubmission.user_id)
+
+    total_completed = sum(row[1] for row in completed_counts)
+    average_completed = total_completed / active_pilots if active_pilots else 0.0
+
+    submission_stats = SubmissionStats(
+        pending=db.query(MissionSubmission).filter(MissionSubmission.status == SubmissionStatus.PENDING).count(),
+        approved=approved_submissions.count(),
+        rejected=db.query(MissionSubmission).filter(MissionSubmission.status == SubmissionStatus.REJECTED).count(),
+    )
+
+    branches = (
+        db.query(Branch)
+        .options(selectinload(Branch.missions))
+        .order_by(Branch.title)
+        .all()
+    )
+    branch_stats: list[BranchCompletionStat] = []
+    for branch in branches:
+        total_missions = len(branch.missions)
+        if total_missions == 0 or total_pilots == 0:
+            branch_stats.append(
+                BranchCompletionStat(branch_id=branch.id, branch_title=branch.title, completion_rate=0.0)
+            )
+            continue
+
+        approved_count = (
+            db.query(func.count(MissionSubmission.id))
+            .join(Mission, Mission.id == MissionSubmission.mission_id)
+            .join(BranchMission, BranchMission.mission_id == Mission.id)
+            .filter(
+                BranchMission.branch_id == branch.id,
+                MissionSubmission.status == SubmissionStatus.APPROVED,
+            )
+            .scalar()
+        )
+        denominator = total_missions * total_pilots
+        rate = min(1.0, approved_count / denominator) if denominator else 0.0
+        branch_stats.append(
+            BranchCompletionStat(branch_id=branch.id, branch_title=branch.title, completion_rate=rate)
+        )
+
+    return AdminDashboardStats(
+        total_users=total_pilots,
+        active_pilots=active_pilots,
+        average_completed_missions=round(average_completed, 2),
+        submission_stats=submission_stats,
+        branch_completion=branch_stats,
+    )
+
+
+@router.post("/artifacts", response_model=ArtifactRead, summary="Создать артефакт")
+def create_artifact(
+    artifact_in: ArtifactCreate,
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> ArtifactRead:
+    """Добавляем новый артефакт в каталог."""
+
+    artifact = Artifact(
+        name=artifact_in.name,
+        description=artifact_in.description,
+        rarity=artifact_in.rarity,
+        image_url=artifact_in.image_url,
+    )
+    db.add(artifact)
+    db.commit()
+    db.refresh(artifact)
+    return ArtifactRead.model_validate(artifact)
+
+
+@router.put("/artifacts/{artifact_id}", response_model=ArtifactRead, summary="Обновить артефакт")
+def update_artifact(
+    artifact_id: int,
+    artifact_in: ArtifactUpdate,
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> ArtifactRead:
+    """Редактируем существующий артефакт."""
+
+    artifact = db.query(Artifact).filter(Artifact.id == artifact_id).first()
+    if not artifact:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Артефакт не найден")
+
+    payload = artifact_in.model_dump(exclude_unset=True)
+    for field, value in payload.items():
+        setattr(artifact, field, value)
+
+    db.commit()
+    db.refresh(artifact)
+    return ArtifactRead.model_validate(artifact)
+
+
+@router.delete(
+    "/artifacts/{artifact_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Удалить артефакт"
+)
+def delete_artifact(
+    artifact_id: int,
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> None:
+    """Удаляем артефакт, если он не привязан к миссиям."""
+
+    artifact = db.query(Artifact).filter(Artifact.id == artifact_id).first()
+    if not artifact:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Артефакт не найден")
+
+    missions_with_artifact = db.query(Mission).filter(Mission.artifact_id == artifact_id).count()
+    if missions_with_artifact:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Нельзя удалить артефакт, привязанный к миссиям",
+        )
+
+    db.delete(artifact)
+    db.commit()
+    return None
 
 
 @router.post("/missions", response_model=MissionDetail, summary="Создать миссию")

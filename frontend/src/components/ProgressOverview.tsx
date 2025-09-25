@@ -28,6 +28,9 @@ export interface ProfileProps {
   rank?: Rank;
   competencies: Competency[];
   artifacts: Artifact[];
+  nextRankTitle?: string;
+  xpProgress: number;
+  xpTarget: number;
 }
 
 const Card = styled.div`
@@ -54,8 +57,18 @@ const ProgressBar = styled.div<{ value: number }>`
   }
 `;
 
-export function ProgressOverview({ fullName, xp, mana, rank, competencies, artifacts }: ProfileProps) {
-  const xpPercent = Math.min(100, (xp / 500) * 100);
+export function ProgressOverview({
+  fullName,
+  xp,
+  mana,
+  rank,
+  competencies,
+  artifacts,
+  nextRankTitle,
+  xpProgress,
+  xpTarget
+}: ProfileProps) {
+  const xpPercent = xpTarget > 0 ? Math.min(100, (xpProgress / xpTarget) * 100) : 100;
 
   return (
     <Card>
@@ -64,7 +77,13 @@ export function ProgressOverview({ fullName, xp, mana, rank, competencies, artif
       <div style={{ marginTop: '1rem' }}>
         <strong>Опыт:</strong>
         <ProgressBar value={xpPercent} />
-        <small style={{ color: 'var(--text-muted)' }}>{xp} / 500 XP до следующей цели</small>
+        {nextRankTitle ? (
+          <small style={{ color: 'var(--text-muted)' }}>
+            Осталось {Math.max(xpTarget - xpProgress, 0)} XP до ранга «{nextRankTitle}»
+          </small>
+        ) : (
+          <small style={{ color: 'var(--text-muted)' }}>Вы достигли максимального ранга в демо-версии</small>
+        )}
       </div>
       <div style={{ marginTop: '1rem' }}>
         <strong>Мана:</strong>

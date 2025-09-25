@@ -1,7 +1,10 @@
 """Конфигурация приложения и загрузка окружения."""
 
+from __future__ import annotations
+
 from functools import lru_cache
 from pathlib import Path
+from typing import List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -20,7 +23,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 12
 
-    backend_cors_origins: list[str] = ["http://localhost:3000", "http://frontend:3000"]
+    backend_cors_origins: List[str] = ["http://localhost:3000", "http://frontend:3000"]
 
     sqlite_path: Path = Path("/data/app.db")
 

@@ -1,10 +1,13 @@
 import { AdminBranchManager } from '../../components/admin/AdminBranchManager';
 import { AdminMissionManager } from '../../components/admin/AdminMissionManager';
 import { AdminRankManager } from '../../components/admin/AdminRankManager';
+import { AdminArtifactManager } from '../../components/admin/AdminArtifactManager';
+import { AdminSubmissionCard } from '../../components/admin/AdminSubmissionCard';
 import { apiFetch } from '../../lib/api';
 import { getDemoToken } from '../../lib/demo-auth';
 
 interface Submission {
+  id: number;
   mission_id: number;
   status: string;
   comment: string | null;
@@ -51,18 +54,40 @@ interface ArtifactSummary {
   name: string;
   description: string;
   rarity: string;
+  image_url?: string | null;
+}
+
+interface SubmissionStats {
+  pending: number;
+  approved: number;
+  rejected: number;
+}
+
+interface BranchCompletionStat {
+  branch_id: number;
+  branch_title: string;
+  completion_rate: number;
+}
+
+interface AdminStats {
+  total_users: number;
+  active_pilots: number;
+  average_completed_missions: number;
+  submission_stats: SubmissionStats;
+  branch_completion: BranchCompletionStat[];
 }
 
 export default async function AdminPage() {
   const token = await getDemoToken('hr');
 
-  const [submissions, missions, branches, ranks, competencies, artifacts] = await Promise.all([
+  const [submissions, missions, branches, ranks, competencies, artifacts, stats] = await Promise.all([
     apiFetch<Submission[]>('/api/admin/submissions', { authToken: token }),
     apiFetch<MissionSummary[]>('/api/admin/missions', { authToken: token }),
     apiFetch<BranchSummary[]>('/api/admin/branches', { authToken: token }),
     apiFetch<RankSummary[]>('/api/admin/ranks', { authToken: token }),
     apiFetch<CompetencySummary[]>('/api/admin/competencies', { authToken: token }),
-    apiFetch<ArtifactSummary[]>('/api/admin/artifacts', { authToken: token })
+    apiFetch<ArtifactSummary[]>('/api/admin/artifacts', { authToken: token }),
+    apiFetch<AdminStats>('/api/admin/stats', { authToken: token })
   ]);
 
   return (
@@ -73,6 +98,46 @@ export default async function AdminPage() {
       </p>
 
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+        <div className="card" style={{ gridColumn: '1 / -1', display: 'grid', gap: '1rem' }}>
+          <h3>Сводка</h3>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+            <div className="card" style={{ marginBottom: 0 }}>
+              <span className="badge">Пилоты</span>
+              <p style={{ fontSize: '2rem', margin: '1rem 0 0' }}>{stats.total_users}</p>
+              <small style={{ color: 'var(--text-muted)' }}>Всего зарегистрировано</small>
+            </div>
+            <div className="card" style={{ marginBottom: 0 }}>
+              <span className="badge">Активность</span>
+              <p style={{ fontSize: '2rem', margin: '1rem 0 0' }}>{stats.active_pilots}</p>
+              <small style={{ color: 'var(--text-muted)' }}>Закрыли хотя бы одну миссию</small>
+            </div>
+            <div className="card" style={{ marginBottom: 0 }}>
+              <span className="badge">Средний прогресс</span>
+              <p style={{ fontSize: '2rem', margin: '1rem 0 0' }}>{stats.average_completed_missions.toFixed(1)}</p>
+              <small style={{ color: 'var(--text-muted)' }}>Миссий на пилота</small>
+            </div>
+          </div>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+            <div className="card" style={{ marginBottom: 0 }}>
+              <strong>Очередь модерации</strong>
+              <p style={{ marginTop: '0.5rem' }}>На проверке: {stats.submission_stats.pending}</p>
+              <small style={{ color: 'var(--text-muted)' }}>
+                Одобрено: {stats.submission_stats.approved} · Отклонено: {stats.submission_stats.rejected}
+              </small>
+            </div>
+            <div className="card" style={{ marginBottom: 0 }}>
+              <strong>Завершённость веток</strong>
+              <ul style={{ listStyle: 'none', margin: '0.75rem 0 0', padding: 0 }}>
+                {stats.branch_completion.map((branchStat) => (
+                  <li key={branchStat.branch_id} style={{ marginBottom: '0.25rem' }}>
+                    {branchStat.branch_title}: {(branchStat.completion_rate * 100).toFixed(0)}%
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+
         <div className="card" style={{ gridColumn: '1 / -1' }}>
           <h3>Очередь модерации</h3>
           <p style={{ color: 'var(--text-muted)' }}>
@@ -80,22 +145,7 @@ export default async function AdminPage() {
           </p>
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
             {submissions.map((submission) => (
-              <div key={`${submission.mission_id}-${submission.updated_at}`} className="card">
-                <h4>Миссия #{submission.mission_id}</h4>
-                <p>Статус: {submission.status}</p>
-                {submission.comment && <p>Комментарий пилота: {submission.comment}</p>}
-                {submission.proof_url && (
-                  <p>
-                    Доказательство:{' '}
-                    <a href={submission.proof_url} target="_blank" rel="noreferrer">
-                      открыть
-                    </a>
-                  </p>
-                )}
-                <small style={{ color: 'var(--text-muted)' }}>
-                  Обновлено: {new Date(submission.updated_at).toLocaleString('ru-RU')}
-                </small>
-              </div>
+              <AdminSubmissionCard key={submission.id} submission={submission} token={token} />
             ))}
             {submissions.length === 0 && <p>Очередь пуста — все миссии проверены.</p>}
           </div>
@@ -111,6 +161,7 @@ export default async function AdminPage() {
           artifacts={artifacts}
         />
         <AdminRankManager token={token} ranks={ranks} missions={missions} competencies={competencies} />
+        <AdminArtifactManager token={token} artifacts={artifacts} />
       </div>
     </section>
   );

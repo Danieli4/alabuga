@@ -11,6 +11,8 @@ class BranchMissionRead(BaseModel):
     mission_id: int
     mission_title: str
     order: int
+    is_completed: bool = False
+    is_available: bool = False
 
 
 class BranchRead(BaseModel):
@@ -21,6 +23,8 @@ class BranchRead(BaseModel):
     description: str
     category: str
     missions: list[BranchMissionRead]
+    total_missions: int = 0
+    completed_missions: int = 0
 
     class Config:
         from_attributes = True

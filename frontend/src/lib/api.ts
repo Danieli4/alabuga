@@ -21,6 +21,15 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     const text = await response.text();
     throw new Error(`API error ${response.status}: ${text}`);
   }
+  if (response.status === 204) {
+    return undefined as T;
+  }
 
-  return response.json() as Promise<T>;
+  const contentType = response.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    return response.json() as Promise<T>;
+  }
+
+  const raw = await response.text();
+  return raw as unknown as T;
 }

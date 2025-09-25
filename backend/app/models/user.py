@@ -10,6 +10,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
 
+# Локальные импорты внизу файла, чтобы избежать циклов типов
+
 
 class UserRole(str, Enum):
     """Типы ролей в системе."""
@@ -47,6 +49,9 @@ class User(Base, TimestampMixin):
     )
     artifacts: Mapped[List["UserArtifact"]] = relationship(
         "UserArtifact", back_populates="user", cascade="all, delete-orphan"
+    )
+    onboarding_state: Mapped[Optional["OnboardingState"]] = relationship(
+        "OnboardingState", back_populates="user", cascade="all, delete-orphan", uselist=False
     )
 
 
@@ -103,3 +108,7 @@ class UserArtifact(Base, TimestampMixin):
 
     user = relationship("User", back_populates="artifacts")
     artifact = relationship("Artifact", back_populates="pilots")
+
+
+# Импорты в конце файла, чтобы отношения корректно инициализировались
+from app.models.onboarding import OnboardingState  # noqa: E402  pylint: disable=wrong-import-position

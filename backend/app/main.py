@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import admin, auth, journal, missions, store, users
+from app.api.routes import admin, auth, journal, missions, onboarding, store, users
 from app.core.config import settings
 from app.db.session import engine
 from app.models.base import Base
@@ -32,6 +32,7 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(missions.router)
 app.include_router(journal.router)
+app.include_router(onboarding.router)
 app.include_router(store.router)
 app.include_router(admin.router)
 

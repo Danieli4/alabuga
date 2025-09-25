@@ -22,18 +22,29 @@ interface RankResponse {
   id: number;
   title: string;
   description: string;
+  required_xp: number;
 }
 
 async function fetchProfile() {
   const token = await getDemoToken();
   const profile = await apiFetch<ProfileResponse>('/api/me', { authToken: token });
   const ranks = await apiFetch<RankResponse[]>('/api/ranks', { authToken: token });
-  const currentRank = ranks.find((rank) => rank.id === profile.current_rank_id);
-  return { token, profile, currentRank };
+  const orderedRanks = [...ranks].sort((a, b) => a.required_xp - b.required_xp);
+  const currentIndex = Math.max(
+    orderedRanks.findIndex((rank) => rank.id === profile.current_rank_id),
+    0
+  );
+  const currentRank = orderedRanks[currentIndex] ?? null;
+  const nextRank = orderedRanks[currentIndex + 1] ?? null;
+  const baselineXp = currentRank ? currentRank.required_xp : 0;
+  const progress = Math.max(profile.xp - baselineXp, 0);
+  const target = nextRank ? nextRank.required_xp - baselineXp : 0;
+
+  return { token, profile, currentRank, nextRank, progress, target };
 }
 
 export default async function DashboardPage() {
-  const { token, profile, currentRank } = await fetchProfile();
+  const { token, profile, currentRank, nextRank, progress, target } = await fetchProfile();
 
   return (
     <section className="grid" style={{ gridTemplateColumns: '2fr 1fr' }}>
@@ -45,6 +56,9 @@ export default async function DashboardPage() {
           rank={currentRank}
           competencies={profile.competencies}
           artifacts={profile.artifacts}
+          nextRankTitle={nextRank?.title}
+          xpProgress={progress}
+          xpTarget={target}
         />
       </div>
       <aside className="card">

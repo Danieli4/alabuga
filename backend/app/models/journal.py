@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from typing import Optional
 
 from sqlalchemy import Enum as SQLEnum, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -30,7 +31,7 @@ class JournalEntry(Base, TimestampMixin):
     event_type: Mapped[JournalEventType] = mapped_column(SQLEnum(JournalEventType), nullable=False)
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    payload: Mapped[dict | None] = mapped_column(JSON)
+    payload: Mapped[Optional[dict]] = mapped_column(JSON)
     xp_delta: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     mana_delta: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
