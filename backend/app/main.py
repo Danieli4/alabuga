@@ -11,7 +11,7 @@ from app.db.session import engine
 from app.models.base import Base
 
 app = FastAPI(title=settings.project_name)
-origins = ["http://localhost:3000", "http://0.0.0.0:3000"]
+
 
 app.add_middleware(
     CORSMiddleware,
