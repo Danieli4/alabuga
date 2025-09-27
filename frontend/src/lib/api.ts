@@ -1,4 +1,5 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const CLIENT_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const SERVER_API_URL = process.env.NEXT_INTERNAL_API_URL || CLIENT_API_URL;
 
 export interface RequestOptions extends RequestInit {
   authToken?: string;
@@ -11,7 +12,8 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     headers.set('Authorization', `Bearer ${options.authToken}`);
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const baseUrl = typeof window === 'undefined' ? SERVER_API_URL : CLIENT_API_URL;
+  const response = await fetch(`${baseUrl}${path}`, {
     ...options,
     headers,
     cache: 'no-store'

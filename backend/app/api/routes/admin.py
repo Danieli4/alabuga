@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session, selectinload
@@ -380,7 +380,7 @@ def delete_artifact(
     *,
     db: Session = Depends(get_db),
     current_user=Depends(require_hr),
-) -> None:
+) -> Response:
     """Удаляем артефакт, если он не привязан к миссиям."""
 
     artifact = db.query(Artifact).filter(Artifact.id == artifact_id).first()
@@ -396,7 +396,7 @@ def delete_artifact(
 
     db.delete(artifact)
     db.commit()
-    return None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/missions", response_model=MissionDetail, summary="Создать миссию")
