@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from sqlalchemy import Boolean, Enum as SQLEnum, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Enum as SQLEnum, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -35,6 +36,9 @@ class User(Base, TimestampMixin):
     mana: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     current_rank_id: Mapped[Optional[int]] = mapped_column(ForeignKey("ranks.id"), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_email_confirmed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    email_confirmation_token: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    email_confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     current_rank = relationship("Rank", back_populates="pilots")
     competencies: Mapped[List["UserCompetency"]] = relationship(

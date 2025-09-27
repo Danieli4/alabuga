@@ -233,6 +233,7 @@ def seed() -> None:
             role=UserRole.PILOT,
             hashed_password=get_password_hash("orbita123"),
             current_rank_id=ranks[0].id,
+            is_email_confirmed=True,
         )
         hr = User(
             email="hr@alabuga.space",
@@ -240,6 +241,7 @@ def seed() -> None:
             role=UserRole.HR,
             hashed_password=get_password_hash("orbita123"),
             current_rank_id=ranks[2].id,
+            is_email_confirmed=True,
         )
         session.add_all([pilot, hr])
         session.flush()

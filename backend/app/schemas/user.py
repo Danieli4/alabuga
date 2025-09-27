@@ -8,6 +8,7 @@ from typing import Optional
 from pydantic import BaseModel, EmailStr
 
 from app.models.user import CompetencyCategory, UserRole
+from app.schemas.artifact import ArtifactRead
 
 
 class CompetencyBase(BaseModel):
@@ -33,13 +34,11 @@ class UserCompetencyRead(BaseModel):
 
 
 class UserArtifactRead(BaseModel):
-    """Полученный артефакт."""
+    """Полученный пользователем артефакт с датой выдачи."""
 
     id: int
-    name: str
-    description: str
-    rarity: str
-    image_url: Optional[str]
+    artifact: ArtifactRead
+    created_at: datetime
 
     class Config:
         from_attributes = True
@@ -56,6 +55,8 @@ class UserRead(BaseModel):
     mana: int
     current_rank_id: Optional[int]
     is_active: bool
+    is_email_confirmed: bool
+    email_confirmed_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
 

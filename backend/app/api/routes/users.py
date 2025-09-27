@@ -24,8 +24,10 @@ def get_profile(
     """Возвращаем профиль и связанные сущности."""
 
     db.refresh(current_user)
-    _ = current_user.competencies
-    _ = current_user.artifacts
+    for item in current_user.competencies:
+        _ = item.competency
+    for artifact in current_user.artifacts:
+        _ = artifact.artifact
     return UserProfile.model_validate(current_user)
 
 

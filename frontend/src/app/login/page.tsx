@@ -35,7 +35,11 @@ async function authenticate(formData: FormData) {
     redirect(profile.role === 'hr' ? '/admin' : '/');
   } catch (error) {
     console.error('Login failed:', error);
-    redirect('/login?error=' + encodeURIComponent('Неверный email или пароль. Попробуйте ещё раз.'));
+    let message = 'Неверный email или пароль. Попробуйте ещё раз.';
+    if (error instanceof Error && error.message.includes('Подтвердите e-mail')) {
+      message = 'Почта не подтверждена. Запросите письмо с кодом и завершите подтверждение.';
+    }
+    redirect('/login?error=' + encodeURIComponent(message));
   }
 }
 

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     secret_key: str = "super-secret-key-change-me"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 12
+    require_email_confirmation: bool = False
 
     backend_cors_origins: List[str] = [
         "http://localhost:3000",
