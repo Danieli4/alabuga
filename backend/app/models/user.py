@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from sqlalchemy import Boolean, DateTime, Enum as SQLEnum, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Enum as SQLEnum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -39,6 +39,10 @@ class User(Base, TimestampMixin):
     is_email_confirmed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     email_confirmation_token: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     email_confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Храним пожелания кандидата: в какой ветке развития он хочет расти.
+    preferred_branch: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    # Короткая заметка с личной мотивацией — помогает HR при первичном контакте.
+    motivation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     current_rank = relationship("Rank", back_populates="pilots")
     competencies: Mapped[List["UserCompetency"]] = relationship(

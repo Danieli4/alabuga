@@ -11,9 +11,12 @@ interface SessionPayload {
   token: string;
   role: 'pilot' | 'hr';
   fullName: string;
+  viewAsPilot?: boolean;
 }
 
+// Названия cookie держим в одном месте, чтобы не допустить опечатки при удалении/чтении.
 const SESSION_COOKIE = 'alabuga_session';
+const VIEW_COOKIE = 'alabuga_view_as';
 
 function parseSession(raw: string | undefined): SessionPayload | null {
   // Cookie может отсутствовать либо быть повреждённой, поэтому парсинг
@@ -38,8 +41,10 @@ export async function getSession(): Promise<SessionPayload | null> {
   }
 
   try {
+    // backend возвращает 401/403 для просроченных или неподтверждённых токенов.
     await apiFetch('/auth/me', { authToken: session.token });
-    return session;
+    const viewAsPilot = store.get(VIEW_COOKIE)?.value === 'pilot';
+    return { ...session, viewAsPilot };
   } catch (error) {
     console.warn('Session validation failed:', error);
     store.delete(SESSION_COOKIE);
@@ -80,9 +85,28 @@ export function createSession(session: SessionPayload) {
     path: '/',
     maxAge: 60 * 60 * 12,
   });
+  store.delete(VIEW_COOKIE);
 }
 
 export function destroySession() {
   // Удаление cookie при выходе пользователя.
-  cookies().delete(SESSION_COOKIE);
+  const store = cookies();
+  store.delete(SESSION_COOKIE);
+  store.delete(VIEW_COOKIE);
+}
+
+export function enablePilotView(): void {
+  // HR включает режим просмотра интерфейса пилота, чтобы видеть клиентские экраны.
+  cookies().set(VIEW_COOKIE, 'pilot', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 60 * 60,
+  });
+}
+
+export function disablePilotView(): void {
+  // Возвращаем интерфейс HR к обычному виду.
+  cookies().delete(VIEW_COOKIE);
 }

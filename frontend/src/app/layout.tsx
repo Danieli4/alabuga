@@ -12,17 +12,33 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // Пробуем получить сессию (если пользователь не авторизован, вернётся null).
   const session = await getSession();
 
-  // Формируем список пунктов меню в зависимости от роли пользователя.
-  const links = session
-    ? [
-        { href: '/', label: 'Дашборд' },
-        { href: '/onboarding', label: 'Онбординг' },
-        { href: '/missions', label: 'Миссии' },
-        { href: '/journal', label: 'Журнал' },
-        { href: '/store', label: 'Магазин' },
-        ...(session.role === 'hr' ? [{ href: '/admin', label: 'HR панель' }] : []),
-      ]
-    : [{ href: '/login', label: 'Войти' }];
+  // Сохраняем подсказки, кто сейчас вошёл и включил ли HR режим «просмотра глазами пилота».
+  const isHr = session?.role === 'hr';
+  const viewingAsPilot = Boolean(session?.viewAsPilot);
+
+  // Формируем пункты меню в зависимости от текущего режима.
+  let links: Array<{ href: string; label: string }> = [];
+
+  if (!session) {
+    links = [{ href: '/login', label: 'Войти' }];
+  } else if (isHr && !viewingAsPilot) {
+    links = [
+      { href: '/admin', label: 'HR панель' },
+      { href: '/admin/view-as', label: 'Просмотр от лица пилота' },
+    ];
+  } else {
+    links = [
+      { href: '/', label: 'Дашборд' },
+      { href: '/onboarding', label: 'Онбординг' },
+      { href: '/missions', label: 'Миссии' },
+      { href: '/journal', label: 'Журнал' },
+      { href: '/store', label: 'Магазин' },
+    ];
+    if (isHr) {
+      // Дополнительный пункт для HR: быстрый выход из режима просмотра.
+      links.push({ href: '/admin/exit-view', label: 'Вернуться к HR' });
+    }
+  }
 
   return (
     <html lang="ru">
@@ -52,6 +68,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   {link.label}
                 </a>
               ))}
+              {viewingAsPilot && (
+                <span style={{
+                  color: '#ffeaa7',
+                  fontSize: '0.85rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em'
+                }}>
+                  режим просмотра пилота
+                </span>
+              )}
               {session && (
                 <>
                   <span style={{ color: 'var(--text-muted)', marginLeft: '1rem' }}>

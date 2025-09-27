@@ -85,3 +85,14 @@ class UserLogin(BaseModel):
 
     email: EmailStr
     password: str
+
+
+class UserRegister(BaseModel):
+    """Регистрация нового пилота."""
+
+    email: EmailStr
+    full_name: str
+    password: str
+    # Дополнительные сведения помогают персонализировать онбординг и связать пилота с куратором.
+    preferred_branch: Optional[str] = None
+    motivation: Optional[str] = None

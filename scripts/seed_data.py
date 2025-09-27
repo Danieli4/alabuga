@@ -234,6 +234,9 @@ def seed() -> None:
             hashed_password=get_password_hash("orbita123"),
             current_rank_id=ranks[0].id,
             is_email_confirmed=True,
+            # Эти два поля демонстрируют, как HR видит пожелания кандидата.
+            preferred_branch="Получение оффера",
+            motivation="Хочу пройти все миссии и закрепиться в экипаже.",
         )
         hr = User(
             email="hr@alabuga.space",
@@ -242,6 +245,8 @@ def seed() -> None:
             hashed_password=get_password_hash("orbita123"),
             current_rank_id=ranks[2].id,
             is_email_confirmed=True,
+            # Для HR поле также используем — служит подсказкой в профиле.
+            preferred_branch="Куратор миссий",
         )
         session.add_all([pilot, hr])
         session.flush()

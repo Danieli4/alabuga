@@ -43,7 +43,11 @@ async function authenticate(formData: FormData) {
   }
 }
 
-export default async function LoginPage({ searchParams }: { searchParams: { error?: string } }) {
+export default async function LoginPage({
+  searchParams
+}: {
+  searchParams: { error?: string; info?: string };
+}) {
   // Если пользователь уже вошёл, сразу перенаправляем его на рабочую страницу.
   const existing = await getSession();
   if (existing) {
@@ -51,6 +55,7 @@ export default async function LoginPage({ searchParams }: { searchParams: { erro
   }
 
   const message = searchParams.error;
+  const info = searchParams.info;
 
   return (
     <section className={styles.container}>
@@ -62,6 +67,7 @@ export default async function LoginPage({ searchParams }: { searchParams: { erro
           <strong> hr@alabuga.space / orbita123</strong>.
         </p>
 
+        {info && <p className={styles.info}>{info}</p>}
         {message && <p className={styles.error}>{message}</p>}
 
         <label className={styles.field}>
@@ -73,6 +79,9 @@ export default async function LoginPage({ searchParams }: { searchParams: { erro
           <input className={styles.input} type="password" name="password" required placeholder="Введите пароль" />
         </label>
         <button className={styles.submit} type="submit">Войти</button>
+        <p className={styles.footer}>
+          Впервые на платформе? <a href="/register">Зарегистрируйтесь и начните путь пилота.</a>
+        </p>
       </form>
     </section>
   );
