@@ -1,5 +1,5 @@
 import { apiFetch } from '../../lib/api';
-import { getDemoToken } from '../../lib/demo-auth';
+import { requireSession } from '../../lib/auth/session';
 import { OnboardingCarousel, OnboardingSlide } from '../../components/OnboardingCarousel';
 
 interface OnboardingState {
@@ -13,20 +13,21 @@ interface OnboardingResponse {
   next_order: number | null;
 }
 
-async function fetchOnboarding() {
-  const token = await getDemoToken();
+async function fetchOnboarding(token: string) {
   const data = await apiFetch<OnboardingResponse>('/api/onboarding/', { authToken: token });
-  return { token, data };
+  return { data };
 }
 
 export default async function OnboardingPage() {
-  const { token, data } = await fetchOnboarding();
+  // Онбординг доступен только после входа: гостям сразу показываем форму логина.
+  const session = await requireSession();
+  const { data } = await fetchOnboarding(session.token);
 
   return (
     <section className="grid" style={{ gridTemplateColumns: '2fr 1fr', alignItems: 'start', gap: '2rem' }}>
       <div>
         <OnboardingCarousel
-          token={token}
+          token={session.token}
           slides={data.slides}
           initialCompletedOrder={data.state.last_completed_order}
           nextOrder={data.next_order}
@@ -47,4 +48,3 @@ export default async function OnboardingPage() {
     </section>
   );
 }
-

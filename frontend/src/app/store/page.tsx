@@ -1,5 +1,5 @@
 import { apiFetch } from '../../lib/api';
-import { getDemoToken } from '../../lib/demo-auth';
+import { requireSession } from '../../lib/auth/session';
 import { StoreItems } from '../../components/StoreItems';
 
 interface StoreItem {
@@ -10,14 +10,15 @@ interface StoreItem {
   stock: number;
 }
 
-async function fetchStore() {
-  const token = await getDemoToken();
+async function fetchStore(token: string) {
   const items = await apiFetch<StoreItem[]>('/api/store/items', { authToken: token });
-  return { items, token };
+  return { items };
 }
 
 export default async function StorePage() {
-  const { items, token } = await fetchStore();
+  // Витрина открыта только для членов экипажа: гостям необходимо авторизоваться.
+  const session = await requireSession();
+  const { items } = await fetchStore(session.token);
 
   return (
     <section>
@@ -25,7 +26,7 @@ export default async function StorePage() {
       <p style={{ color: 'var(--text-muted)' }}>
         Обменивайте ману на уникальные впечатления и мерч. Доступно только для активных членов экипажа.
       </p>
-      <StoreItems items={items} token={token} />
+      <StoreItems items={items} token={session.token} />
     </section>
   );
 }

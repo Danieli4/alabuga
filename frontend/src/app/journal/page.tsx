@@ -1,5 +1,5 @@
 import { apiFetch } from '../../lib/api';
-import { getDemoToken } from '../../lib/demo-auth';
+import { requireSession } from '../../lib/auth/session';
 import { JournalTimeline } from '../../components/JournalTimeline';
 
 interface JournalEntry {
@@ -24,8 +24,7 @@ interface LeaderboardResponse {
   entries: LeaderboardEntry[];
 }
 
-async function fetchJournal() {
-  const token = await getDemoToken();
+async function fetchJournal(token: string) {
   const [entries, week, month, year] = await Promise.all([
     apiFetch<JournalEntry[]>('/api/journal/', { authToken: token }),
     apiFetch<LeaderboardResponse>('/api/journal/leaderboard?period=week', { authToken: token }),
@@ -36,7 +35,9 @@ async function fetchJournal() {
 }
 
 export default async function JournalPage() {
-  const { entries, leaderboards } = await fetchJournal();
+  // Журнал событий содержит персональные данные, поэтому требует активной сессии.
+  const session = await requireSession();
+  const { entries, leaderboards } = await fetchJournal(session.token);
 
   return (
     <section className="grid" style={{ gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>

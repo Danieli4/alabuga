@@ -1,5 +1,5 @@
 import { apiFetch } from '../../../lib/api';
-import { getDemoToken } from '../../../lib/demo-auth';
+import { requireSession } from '../../../lib/auth/session';
 import { MissionSubmissionForm } from '../../../components/MissionSubmissionForm';
 
 interface MissionDetail {
@@ -21,10 +21,9 @@ interface MissionDetail {
   locked_reasons: string[];
 }
 
-async function fetchMission(id: number) {
-  const token = await getDemoToken();
+async function fetchMission(id: number, token: string) {
   const mission = await apiFetch<MissionDetail>(`/api/missions/${id}`, { authToken: token });
-  return { mission, token };
+  return { mission };
 }
 
 interface MissionPageProps {
@@ -33,7 +32,9 @@ interface MissionPageProps {
 
 export default async function MissionPage({ params }: MissionPageProps) {
   const missionId = Number(params.id);
-  const { mission, token } = await fetchMission(missionId);
+  // Даже при прямом переходе на URL миссия доступна только авторизованным пользователям.
+  const session = await requireSession();
+  const { mission } = await fetchMission(missionId, session.token);
 
   return (
     <section>
@@ -64,7 +65,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
           {mission.competency_rewards.length === 0 && <li>Нет прокачки компетенций.</li>}
         </ul>
       </div>
-      <MissionSubmissionForm missionId={mission.id} token={token} locked={!mission.is_available} />
+      <MissionSubmissionForm missionId={mission.id} token={session.token} locked={!mission.is_available} />
     </section>
   );
 }

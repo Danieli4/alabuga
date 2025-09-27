@@ -1,5 +1,5 @@
 import { apiFetch } from '../../lib/api';
-import { getDemoToken } from '../../lib/demo-auth';
+import { requireSession } from '../../lib/auth/session';
 import { MissionList, MissionSummary } from '../../components/MissionList';
 
 interface BranchMission {
@@ -20,8 +20,7 @@ interface BranchOverview {
   completed_missions: number;
 }
 
-async function fetchMissions() {
-  const token = await getDemoToken();
+async function fetchMissions(token: string) {
   const [missions, branches] = await Promise.all([
     apiFetch<MissionSummary[]>('/api/missions/', { authToken: token }),
     apiFetch<BranchOverview[]>('/api/missions/branches', { authToken: token })
@@ -30,7 +29,9 @@ async function fetchMissions() {
 }
 
 export default async function MissionsPage() {
-  const { missions, branches } = await fetchMissions();
+  // Пилоты видят миссии только после авторизации: гостям покажем страницу входа.
+  const session = await requireSession();
+  const { missions, branches } = await fetchMissions(session.token);
 
   return (
     <section>

@@ -4,7 +4,7 @@ import { AdminRankManager } from '../../components/admin/AdminRankManager';
 import { AdminArtifactManager } from '../../components/admin/AdminArtifactManager';
 import { AdminSubmissionCard } from '../../components/admin/AdminSubmissionCard';
 import { apiFetch } from '../../lib/api';
-import { getDemoToken } from '../../lib/demo-auth';
+import { requireRole } from '../../lib/auth/session';
 
 interface Submission {
   id: number;
@@ -78,16 +78,17 @@ interface AdminStats {
 }
 
 export default async function AdminPage() {
-  const token = await getDemoToken('hr');
+  // Админ-панель доступна только HR-сотрудникам; проверяем роль до загрузки данных.
+  const session = await requireRole('hr');
 
   const [submissions, missions, branches, ranks, competencies, artifacts, stats] = await Promise.all([
-    apiFetch<Submission[]>('/api/admin/submissions', { authToken: token }),
-    apiFetch<MissionSummary[]>('/api/admin/missions', { authToken: token }),
-    apiFetch<BranchSummary[]>('/api/admin/branches', { authToken: token }),
-    apiFetch<RankSummary[]>('/api/admin/ranks', { authToken: token }),
-    apiFetch<CompetencySummary[]>('/api/admin/competencies', { authToken: token }),
-    apiFetch<ArtifactSummary[]>('/api/admin/artifacts', { authToken: token }),
-    apiFetch<AdminStats>('/api/admin/stats', { authToken: token })
+    apiFetch<Submission[]>('/api/admin/submissions', { authToken: session.token }),
+    apiFetch<MissionSummary[]>('/api/admin/missions', { authToken: session.token }),
+    apiFetch<BranchSummary[]>('/api/admin/branches', { authToken: session.token }),
+    apiFetch<RankSummary[]>('/api/admin/ranks', { authToken: session.token }),
+    apiFetch<CompetencySummary[]>('/api/admin/competencies', { authToken: session.token }),
+    apiFetch<ArtifactSummary[]>('/api/admin/artifacts', { authToken: session.token }),
+    apiFetch<AdminStats>('/api/admin/stats', { authToken: session.token })
   ]);
 
   return (
@@ -145,23 +146,23 @@ export default async function AdminPage() {
           </p>
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
             {submissions.map((submission) => (
-              <AdminSubmissionCard key={submission.id} submission={submission} token={token} />
+              <AdminSubmissionCard key={submission.id} submission={submission} token={session.token} />
             ))}
             {submissions.length === 0 && <p>Очередь пуста — все миссии проверены.</p>}
           </div>
         </div>
 
-        <AdminBranchManager token={token} branches={branches} />
+        <AdminBranchManager token={session.token} branches={branches} />
         <AdminMissionManager
-          token={token}
+          token={session.token}
           missions={missions}
           branches={branches}
           ranks={ranks}
           competencies={competencies}
           artifacts={artifacts}
         />
-        <AdminRankManager token={token} ranks={ranks} missions={missions} competencies={competencies} />
-        <AdminArtifactManager token={token} artifacts={artifacts} />
+        <AdminRankManager token={session.token} ranks={ranks} missions={missions} competencies={competencies} />
+        <AdminArtifactManager token={session.token} artifacts={artifacts} />
       </div>
     </section>
   );

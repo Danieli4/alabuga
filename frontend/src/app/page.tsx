@@ -1,5 +1,5 @@
 import { apiFetch } from '../lib/api';
-import { getDemoToken } from '../lib/demo-auth';
+import { requireSession } from '../lib/auth/session';
 import { ProgressOverview } from '../components/ProgressOverview';
 
 interface ProfileResponse {
@@ -41,18 +41,20 @@ interface ProgressResponse {
   total_competencies: number;
 }
 
-async function fetchProfile() {
-  const token = await getDemoToken();
+async function fetchProfile(token: string) {
   const [profile, progress] = await Promise.all([
     apiFetch<ProfileResponse>('/api/me', { authToken: token }),
     apiFetch<ProgressResponse>('/api/progress', { authToken: token })
   ]);
 
-  return { token, profile, progress };
+  return { profile, progress };
 }
 
 export default async function DashboardPage() {
-  const { token, profile, progress } = await fetchProfile();
+  // Стартовая страница доступна только авторизованным пользователям (пилотам).
+  // Если сессия отсутствует, `requireSession` автоматически выполнит редирект на `/login`.
+  const session = await requireSession();
+  const { profile, progress } = await fetchProfile(session.token);
 
   return (
     <section className="grid" style={{ gridTemplateColumns: '2fr 1fr' }}>
@@ -75,7 +77,9 @@ export default async function DashboardPage() {
           Осталось {progress.xp.remaining} XP · {progress.completed_missions}/{progress.total_missions} миссий ·{' '}
           {progress.met_competencies}/{progress.total_competencies} компетенций.
         </p>
-        <p style={{ marginTop: '1rem' }}>Доступ к HR-панели: {token ? 'есть (демо-режим)' : 'нет'}</p>
+        <p style={{ marginTop: '1rem' }}>
+          Доступ к HR-панели: {session.role === 'hr' ? 'есть' : 'нет'}
+        </p>
         <a className="primary" style={{ marginTop: '1rem', display: 'inline-block' }} href="/missions">
           Посмотреть миссии
         </a>
