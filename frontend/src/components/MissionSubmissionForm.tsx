@@ -6,9 +6,10 @@ import { apiFetch } from '../lib/api';
 interface MissionSubmissionFormProps {
   missionId: number;
   token?: string;
+  locked?: boolean;
 }
 
-export function MissionSubmissionForm({ missionId, token }: MissionSubmissionFormProps) {
+export function MissionSubmissionForm({ missionId, token, locked = false }: MissionSubmissionFormProps) {
   const [comment, setComment] = useState('');
   const [proofUrl, setProofUrl] = useState('');
   const [status, setStatus] = useState<string | null>(null);
@@ -18,6 +19,11 @@ export function MissionSubmissionForm({ missionId, token }: MissionSubmissionFor
     event.preventDefault();
     if (!token) {
       setStatus('Не удалось получить токен демо-пользователя.');
+      return;
+    }
+
+    if (locked) {
+      setStatus('Миссия пока недоступна — выполните предыдущие условия.');
       return;
     }
 
@@ -52,6 +58,7 @@ export function MissionSubmissionForm({ missionId, token }: MissionSubmissionFor
           rows={4}
           style={{ width: '100%', marginTop: '0.5rem', borderRadius: '12px', padding: '0.75rem' }}
           placeholder="Опишите, что сделали."
+          disabled={locked}
         />
       </label>
       <label style={{ display: 'block', marginBottom: '0.5rem' }}>
@@ -62,10 +69,11 @@ export function MissionSubmissionForm({ missionId, token }: MissionSubmissionFor
           onChange={(event) => setProofUrl(event.target.value)}
           style={{ width: '100%', marginTop: '0.5rem', borderRadius: '12px', padding: '0.75rem' }}
           placeholder="https://..."
+          disabled={locked}
         />
       </label>
-      <button className="primary" type="submit" disabled={loading}>
-        {loading ? 'Отправляем...' : 'Отправить HR'}
+      <button className="primary" type="submit" disabled={loading || locked}>
+        {locked ? 'Недоступно' : loading ? 'Отправляем...' : 'Отправить HR'}
       </button>
       {status && <p style={{ marginTop: '1rem', color: 'var(--accent-light)' }}>{status}</p>}
     </form>

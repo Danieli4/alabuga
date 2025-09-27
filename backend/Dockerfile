@@ -2,11 +2,14 @@ FROM python:3.13-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    POETRY_VIRTUALENVS_CREATE=false
+    POETRY_VIRTUALENVS_CREATE=false \
+    PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y build-essential libpq-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential libpq-dev \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt

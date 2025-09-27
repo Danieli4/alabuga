@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.mission import MissionDifficulty, SubmissionStatus
 
@@ -20,6 +20,8 @@ class MissionBase(BaseModel):
     mana_reward: int
     difficulty: MissionDifficulty
     is_active: bool
+    is_available: bool = True
+    locked_reasons: list[str] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
@@ -68,6 +70,23 @@ class MissionCreate(BaseModel):
     branch_order: int = 1
 
 
+class MissionUpdate(BaseModel):
+    """Схема обновления миссии."""
+
+    title: Optional[str] = None
+    description: Optional[str] = None
+    xp_reward: Optional[int] = None
+    mana_reward: Optional[int] = None
+    difficulty: Optional[MissionDifficulty] = None
+    minimum_rank_id: Optional[int | None] = None
+    artifact_id: Optional[int | None] = None
+    prerequisite_ids: Optional[list[int]] = None
+    competency_rewards: Optional[list[MissionCreateReward]] = None
+    branch_id: Optional[int | None] = None
+    branch_order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
 class MissionSubmissionCreate(BaseModel):
     """Отправка отчёта по миссии."""
 
@@ -78,6 +97,7 @@ class MissionSubmissionCreate(BaseModel):
 class MissionSubmissionRead(BaseModel):
     """Получение статуса отправки."""
 
+    id: int
     mission_id: int
     status: SubmissionStatus
     comment: Optional[str]

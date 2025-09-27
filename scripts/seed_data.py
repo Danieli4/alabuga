@@ -11,16 +11,18 @@ from sqlalchemy.orm import Session
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT / 'backend'))
 
+from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.session import SessionLocal, engine
 from app.models.artifact import Artifact, ArtifactRarity
 from app.models.branch import Branch, BranchMission
 from app.models.mission import Mission, MissionCompetencyReward, MissionDifficulty
 from app.models.rank import Rank, RankCompetencyRequirement, RankMissionRequirement
+from app.models.onboarding import OnboardingSlide
 from app.models.store import StoreItem
 from app.models.user import Competency, CompetencyCategory, User, UserCompetency, UserRole
 
-DATA_SENTINEL = Path("/data/.seeded")
+DATA_SENTINEL = settings.sqlite_path.parent / ".seeded"
 
 
 def ensure_database() -> None:
@@ -246,6 +248,32 @@ def seed() -> None:
             [
                 UserCompetency(user_id=pilot.id, competency_id=competencies[1].id, level=1),
                 UserCompetency(user_id=pilot.id, competency_id=competencies[0].id, level=1),
+            ]
+        )
+
+        session.add_all(
+            [
+                OnboardingSlide(
+                    order=1,
+                    title="Добро пожаловать в орбитальный флот",
+                    body="Узнайте, как миссии помогают связать карьерные шаги в единую траекторию.",
+                    media_url="https://images.nasa.gov/details-PIA12235",
+                    cta_text="Перейти к миссиям",
+                    cta_link="/missions",
+                ),
+                OnboardingSlide(
+                    order=2,
+                    title="Получайте опыт и ману",
+                    body="Выполняя задания, вы накапливаете опыт для повышения ранга и ману для магазина.",
+                    media_url="https://images.nasa.gov/details-PIA23499",
+                ),
+                OnboardingSlide(
+                    order=3,
+                    title="Повышайте ранг до члена экипажа",
+                    body="Закройте ключевые миссии ветки «Получение оффера» и прокачайте компетенции.",
+                    cta_text="Открыть ветку",
+                    cta_link="/missions",
+                ),
             ]
         )
 

@@ -24,3 +24,19 @@ class JournalEntryRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class LeaderboardEntry(BaseModel):
+    """Участник таблицы лидеров."""
+
+    user_id: int
+    full_name: str
+    xp_delta: int
+    mana_delta: int
+
+
+class LeaderboardResponse(BaseModel):
+    """Ответ для таблицы лидеров."""
+
+    period: str
+    entries: list[LeaderboardEntry]

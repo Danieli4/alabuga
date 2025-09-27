@@ -6,6 +6,8 @@
   --accent-light: #a29bfe;
   --text: #f5f6fa;
   --text-muted: #b2bec3;
+  --success: #00b894;
+  --error: #ff7675;
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
@@ -17,6 +19,18 @@ body {
     var(--bg);
   color: var(--text);
   min-height: 100vh;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(#ffffff33 1px, transparent 0);
+  background-size: 60px 60px;
+  opacity: 0.25;
+  pointer-events: none;
+  mix-blend-mode: screen;
 }
 
 a {
@@ -30,6 +44,8 @@ a {
 
 main {
   padding: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .card {
@@ -39,6 +55,40 @@ main {
   padding: 1.5rem;
   backdrop-filter: blur(10px);
   margin-bottom: 1.5rem;
+}
+
+.admin-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.admin-form input,
+.admin-form textarea,
+.admin-form select {
+  border-radius: 12px;
+  border: 1px solid rgba(162, 155, 254, 0.3);
+  background: rgba(8, 11, 26, 0.6);
+  padding: 0.75rem;
+  color: var(--text);
+  width: 100%;
+}
+
+.admin-form textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.admin-form .checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .grid {
@@ -70,4 +120,14 @@ main {
 .primary:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.secondary {
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(162, 155, 254, 0.4);
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 500;
+  cursor: pointer;
 }

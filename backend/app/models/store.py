@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import Enum as SQLEnum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -45,7 +45,7 @@ class Order(Base, TimestampMixin):
     status: Mapped[OrderStatus] = mapped_column(
         SQLEnum(OrderStatus), default=OrderStatus.CREATED, nullable=False
     )
-    comment: Mapped[str | None] = mapped_column(Text)
+    comment: Mapped[Optional[str]] = mapped_column(Text)
 
     user = relationship("User", back_populates="orders")
     item = relationship("StoreItem", back_populates="orders")

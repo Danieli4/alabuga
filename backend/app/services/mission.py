@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.journal import JournalEventType
 from app.models.mission import Mission, MissionSubmission, SubmissionStatus
-from app.models.user import User, UserCompetency
+from app.models.user import User, UserArtifact, UserCompetency
 from app.services.journal import log_event
 from app.services.rank import apply_rank_upgrade
 
@@ -81,6 +81,21 @@ def approve_submission(db: Session, submission: MissionSubmission) -> MissionSub
     user.mana += submission.awarded_mana
 
     _increase_competencies(db, user, submission.mission)
+
+    if submission.mission.artifact_id:
+        already_has = any(
+            artifact.artifact_id == submission.mission.artifact_id for artifact in user.artifacts
+        )
+        if not already_has:
+            db.add(UserArtifact(user_id=user.id, artifact_id=submission.mission.artifact_id))
+            log_event(
+                db,
+                user_id=user.id,
+                event_type=JournalEventType.MISSION_COMPLETED,
+                title=f"Получен артефакт за миссию «{submission.mission.title}»",
+                description="Новый артефакт добавлен в коллекцию.",
+                payload={"artifact_id": submission.mission.artifact_id},
+            )
 
     db.add_all([submission, user])
     db.commit()
