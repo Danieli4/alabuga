@@ -23,7 +23,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 12
 
-    backend_cors_origins: List[str] = ["http://localhost:3000", "http://frontend:3000"]
+    backend_cors_origins: List[str] = [
+        "http://localhost:3000",
+        "http://frontend:3000",
+        "http://0.0.0.0:3000",
+    ]
 
     sqlite_path: Path = Path("/data/app.db")
 

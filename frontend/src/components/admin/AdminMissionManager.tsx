@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { apiFetch } from '../../lib/api';
@@ -108,6 +108,10 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Позволяет мгновенно подставлять базовые поля при переключении миссии,
+  // пока загрузка детальной карточки не завершилась.
+  const missionById = useMemo(() => new Map(missions.map((mission) => [mission.id, mission])), [missions]);
+
   const resetForm = () => {
     setForm(initialFormState);
   };
@@ -160,6 +164,20 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
     }
 
     const id = Number(value);
+
+    const baseMission = missionById.get(id);
+    if (baseMission) {
+      setForm((prev) => ({
+        ...prev,
+        title: baseMission.title,
+        description: baseMission.description,
+        xp_reward: baseMission.xp_reward,
+        mana_reward: baseMission.mana_reward,
+        difficulty: baseMission.difficulty,
+        is_active: baseMission.is_active
+      }));
+    }
+
     setSelectedId(id);
     void loadMission(id);
   };

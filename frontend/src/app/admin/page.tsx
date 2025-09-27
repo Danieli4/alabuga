@@ -23,7 +23,7 @@ interface MissionSummary {
   description: string;
   xp_reward: number;
   mana_reward: number;
-  difficulty: string;
+  difficulty: 'easy' | 'medium' | 'hard';
   is_active: boolean;
 }
 

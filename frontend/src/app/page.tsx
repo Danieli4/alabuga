@@ -6,7 +6,6 @@ interface ProfileResponse {
   full_name: string;
   xp: number;
   mana: number;
-  current_rank_id: number | null;
   competencies: Array<{
     competency: { id: number; name: string };
     level: number;
@@ -18,54 +17,63 @@ interface ProfileResponse {
   }>;
 }
 
-interface RankResponse {
-  id: number;
-  title: string;
-  description: string;
-  required_xp: number;
+interface ProgressResponse {
+  current_rank: { id: number; title: string; description: string; required_xp: number } | null;
+  next_rank: { id: number; title: string; description: string; required_xp: number } | null;
+  xp: {
+    baseline: number;
+    current: number;
+    target: number;
+    remaining: number;
+    progress_percent: number;
+  };
+  mission_requirements: Array<{ mission_id: number; mission_title: string; is_completed: boolean }>;
+  competency_requirements: Array<{
+    competency_id: number;
+    competency_name: string;
+    required_level: number;
+    current_level: number;
+    is_met: boolean;
+  }>;
+  completed_missions: number;
+  total_missions: number;
+  met_competencies: number;
+  total_competencies: number;
 }
 
 async function fetchProfile() {
   const token = await getDemoToken();
-  const profile = await apiFetch<ProfileResponse>('/api/me', { authToken: token });
-  const ranks = await apiFetch<RankResponse[]>('/api/ranks', { authToken: token });
-  const orderedRanks = [...ranks].sort((a, b) => a.required_xp - b.required_xp);
-  const currentIndex = Math.max(
-    orderedRanks.findIndex((rank) => rank.id === profile.current_rank_id),
-    0
-  );
-  const currentRank = orderedRanks[currentIndex] ?? null;
-  const nextRank = orderedRanks[currentIndex + 1] ?? null;
-  const baselineXp = currentRank ? currentRank.required_xp : 0;
-  const progress = Math.max(profile.xp - baselineXp, 0);
-  const target = nextRank ? nextRank.required_xp - baselineXp : 0;
+  const [profile, progress] = await Promise.all([
+    apiFetch<ProfileResponse>('/api/me', { authToken: token }),
+    apiFetch<ProgressResponse>('/api/progress', { authToken: token })
+  ]);
 
-  return { token, profile, currentRank, nextRank, progress, target };
+  return { token, profile, progress };
 }
 
 export default async function DashboardPage() {
-  const { token, profile, currentRank, nextRank, progress, target } = await fetchProfile();
+  const { token, profile, progress } = await fetchProfile();
 
   return (
     <section className="grid" style={{ gridTemplateColumns: '2fr 1fr' }}>
       <div>
         <ProgressOverview
           fullName={profile.full_name}
-          xp={profile.xp}
           mana={profile.mana}
-          rank={currentRank}
           competencies={profile.competencies}
           artifacts={profile.artifacts}
-          nextRankTitle={nextRank?.title}
-          xpProgress={progress}
-          xpTarget={target}
+          progress={progress}
         />
       </div>
       <aside className="card">
         <h3>Ближайшая цель</h3>
-        <p style={{ color: 'var(--text-muted)' }}>
-          Выполните миссии ветки «Получение оффера», чтобы закрепиться в экипаже и открыть доступ к
-          сложным задачам.
+        <p style={{ color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          Следующий рубеж: {progress.next_rank ? `ранг «${progress.next_rank.title}»` : 'вы на максимальном ранге демо-версии'}.
+          Закройте ключевые миссии и подтяните компетенции, чтобы взять оффер.
+        </p>
+        <p style={{ marginTop: '1rem' }}>
+          Осталось {progress.xp.remaining} XP · {progress.completed_missions}/{progress.total_missions} миссий ·{' '}
+          {progress.met_competencies}/{progress.total_competencies} компетенций.
         </p>
         <p style={{ marginTop: '1rem' }}>Доступ к HR-панели: {token ? 'есть (демо-режим)' : 'нет'}</p>
         <a className="primary" style={{ marginTop: '1rem', display: 'inline-block' }} href="/missions">
