@@ -19,9 +19,24 @@ const Card = styled.div`
   border: 1px solid rgba(108, 92, 231, 0.25);
 `;
 
+type Feedback = { kind: 'success' | 'error'; text: string } | null;
+
 export function StoreItems({ items, token }: { items: StoreItem[]; token?: string }) {
   const [loadingId, setLoadingId] = useState<number | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<Feedback>(null);
+
+  const resolveErrorMessage = (error: unknown) => {
+    if (error instanceof Error) {
+      if (/Недостаточно маны/i.test(error.message)) {
+        return 'Недостаточно маны: выполните миссии с наградой ⚡ или загляните в журнал за бонусами.';
+      }
+      if (/Товар закончился/i.test(error.message)) {
+        return 'Товар закончился — выберите другой приз или загляните позже, когда пополним склад.';
+      }
+      return 'Не удалось оформить заказ. Проверьте подключение и повторите попытку.';
+    }
+    return 'Произошла неизвестная ошибка. Повторите попытку позже.';
+  };
 
   async function handlePurchase(id: number) {
     try {
@@ -32,11 +47,9 @@ export function StoreItems({ items, token }: { items: StoreItem[]; token?: strin
         body: JSON.stringify({ item_id: id }),
         authToken: token
       });
-      setMessage('Заказ оформлен — проверьте журнал событий.');
+      setMessage({ kind: 'success', text: 'Заказ оформлен — подтверждение появится в журнале и в панели HR.' });
     } catch (error) {
-      if (error instanceof Error) {
-        setMessage(error.message);
-      }
+      setMessage({ kind: 'error', text: resolveErrorMessage(error) });
     } finally {
       setLoadingId(null);
     }
@@ -44,7 +57,14 @@ export function StoreItems({ items, token }: { items: StoreItem[]; token?: strin
 
   return (
     <div>
-      {message && <p style={{ color: 'var(--accent-light)' }}>{message}</p>}
+      {message && (
+        <p style={{
+          color: message.kind === 'success' ? 'var(--accent-light)' : 'var(--error)',
+          marginBottom: '1rem'
+        }}>
+          {message.text}
+        </p>
+      )}
       <div className="grid">
         {items.map((item) => (
           <Card key={item.id}>
