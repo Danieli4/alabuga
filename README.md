@@ -36,40 +36,6 @@
 
 Docker Compose автоматически переопределяет `ALABUGA_SQLITE_PATH=/data/app.db`, чтобы база сохранялась во внешнем volume. Для локального запуска вне Docker оставьте путь `./data/app.db` из примера.
 
-## Локальная разработка backend
-
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
-pip install -r requirements-dev.txt
-
-# подготовьте переменные окружения (однократно)
-cp .env.example .env
-
-# при необходимости включите в .env подтверждение почты
-# ALABUGA_REQUIRE_EMAIL_CONFIRMATION=true
-
-# база поднимется сама: при старте приложения автоматически выполняется Alembic upgrade head.
-# Для ручной подготовки можно вызвать команду ниже — она прогоняет миграции и добавляет демо-данные.
-cd ..
-python -m scripts.seed_data
-cd backend
-
-# Запуск API
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-## Локальная разработка фронтенда
-
-```bash
-cd frontend
-npm install
-cp .env.example .env
-npm run dev
-```
-
 ## Пользовательские учётные записи (сидированные)
 
 | Роль | Email | Пароль |

@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   backend:
     build:
@@ -11,10 +9,10 @@ services:
       - backend-data:/data
       - ./backend:/app
     env_file:
-      - backend/.env.example
-    environment:
-      ALABUGA_ENVIRONMENT: docker
+      - backend/.env
     depends_on: []
+    networks:
+      - app-network
 
   frontend:
     build:
@@ -22,18 +20,21 @@ services:
     command: npm run dev -- --hostname 0.0.0.0 --port 3000
     ports:
       - '3000:3000'
+    env_file:
+      - frontend/.env
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
       NEXT_INTERNAL_API_URL: http://backend:8000
-      NEXT_PUBLIC_DEMO_EMAIL: candidate@alabuga.space
-      NEXT_PUBLIC_DEMO_PASSWORD: orbita123
-      NEXT_PUBLIC_DEMO_HR_EMAIL: hr@alabuga.space
-      NEXT_PUBLIC_DEMO_HR_PASSWORD: orbita123
     volumes:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
       - backend
+    networks:
+      - app-network
 
 volumes:
   backend-data:
+
+networks:
+  app-network:
+    driver: bridge

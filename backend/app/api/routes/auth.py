@@ -82,7 +82,7 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)) -> Token | di
         token = issue_confirmation_token(user, db)
         return {
             "detail": "Мы отправили письмо с подтверждением. Введите код, чтобы активировать аккаунт.",
-            "debug_token": token if settings.environment != 'production' else None,
+            "debug_token": token if settings.debug else None,
         }
 
     # 4. Если подтверждение выключено, сразу создаём JWT и возвращаем его фронтенду.
@@ -110,7 +110,7 @@ def request_confirmation(payload: EmailRequest, db: Session = Depends(get_db)) -
     token = issue_confirmation_token(user, db)
 
     hint = None
-    if settings.environment != 'production':
+    if settings.debug:
         hint = token
 
     return {

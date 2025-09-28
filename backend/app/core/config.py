@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", env_prefix="ALABUGA_", extra="ignore")
 
     project_name: str = "Alabuga Gamification API"
-    environment: str = "local"
+    debug: bool = False
     secret_key: str = "super-secret-key-change-me"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 12
