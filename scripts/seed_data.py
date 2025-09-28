@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-
+import os
 import sys
 
 from sqlalchemy.orm import Session
@@ -33,7 +33,12 @@ def seed() -> None:
         return
 
     # Перед наполнением БД убеждаемся, что применены все миграции.
-    run_migrations()
+    original_cwd = Path.cwd()
+    try:
+        os.chdir(ROOT / 'backend')
+        run_migrations()
+    finally:
+        os.chdir(original_cwd)
 
     session: Session = SessionLocal()
     try:
