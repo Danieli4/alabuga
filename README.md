@@ -26,9 +26,10 @@
    cp backend/.env.example backend/.env
    cp frontend/.env.example frontend/.env
    ```
-3. Запустите окружение:
+3. Запустите:
    ```bash
-   docker compose up --build
+   make setup
+   make start
    ```
 4. После запуска будут доступны сервисы:
    - API: http://localhost:8000 (документация Swagger — `/docs`).

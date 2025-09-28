@@ -1,0 +1,122 @@
+.spaceBackground {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.spaceSvg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.stars {
+  filter: blur(0.5px);
+}
+
+.particles {
+  filter: blur(1px);
+}
+
+.planets {
+  filter: blur(2px);
+}
+
+.nebula {
+  filter: blur(8px);
+}
+
+.shootingStars {
+  filter: blur(0.5px);
+}
+
+.rocket {
+  filter: drop-shadow(0 0 8px rgba(116, 185, 255, 0.4));
+}
+
+/* Animation keyframes for smooth performance */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes drift {
+  0% {
+    transform: translate(0, 0);
+  }
+  33% {
+    transform: translate(30px, -30px);
+  }
+  66% {
+    transform: translate(-20px, 20px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .spaceBackground {
+    opacity: 0.7;
+  }
+  
+  .rocket {
+    opacity: 0.6;
+    transform: scale(0.8);
+  }
+}
+
+@media (max-width: 480px) {
+  .spaceBackground {
+    opacity: 0.5;
+  }
+  
+  .stars circle {
+    opacity: 0.4 !important;
+  }
+  
+  .particles circle {
+    opacity: 0.3 !important;
+  }
+}
+
+/* Reduced motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .stars circle,
+  .particles circle,
+  .planets circle,
+  .nebula ellipse,
+  .shootingStars line {
+    animation: none !important;
+  }
+  
+  .stars circle animate,
+  .particles circle animate,
+  .particles circle animateTransform,
+  .planets circle animateTransform,
+  .nebula ellipse animateTransform,
+  .shootingStars line animate,
+  .shootingStars line animateTransform {
+    display: none;
+  }
+}

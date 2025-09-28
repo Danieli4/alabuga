@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { apiFetch } from '../../lib/api';
 import { createSession, getSession } from '../../lib/auth/session';
+import SpaceBackground from '../../components/SpaceBackground';
 
 import styles from './styles.module.css';
 
@@ -59,6 +60,7 @@ export default async function LoginPage({
 
   return (
     <section className={styles.container}>
+      <SpaceBackground />
       <form className={styles.form} action={authenticate}>
         <h1>Вход в Mission Control</h1>
         {/* Подсказка для демо-режима, чтобы не искать логин/пароль в README. */}
