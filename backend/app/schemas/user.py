@@ -71,6 +71,21 @@ class UserProfile(UserRead):
     artifacts: list[UserArtifactRead]
 
 
+class LeaderboardEntry(BaseModel):
+    """Строка лидерборда по опыту и компетенциям."""
+
+    user_id: int
+    full_name: str
+    rank_title: Optional[str]
+    xp: int
+    mana: int
+    completed_missions: int
+    competencies: list[UserCompetencyRead]
+
+    class Config:
+        from_attributes = True
+
+
 class UserCreate(BaseModel):
     """Создание пользователя (используется для сидов)."""
 

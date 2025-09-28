@@ -3,25 +3,29 @@
 from __future__ import annotations
 
 from collections import defaultdict
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.branch import Branch, BranchMission
 from app.models.mission import Mission, MissionSubmission, SubmissionStatus
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.branch import BranchMissionRead, BranchRead
 from app.schemas.mission import (
     MissionBase,
     MissionDetail,
-    MissionSubmissionCreate,
     MissionSubmissionRead,
 )
-from app.services.mission import submit_mission
+from app.services.mission import UNSET, submit_mission
+from app.services.storage import delete_submission_document, save_submission_document
+from app.core.config import settings
 
 router = APIRouter(prefix="/api/missions", tags=["missions"])
+
+# Для миссии #1 требуется обязательное прикрепление документов.
+REQUIRED_DOCUMENT_MISSIONS = {1}
 
 
 def _load_user_progress(user: User) -> set[int]:
@@ -194,8 +198,15 @@ def list_missions(
             mission_titles=mission_titles,
         )
         dto = MissionBase.model_validate(mission)
-        dto.is_available = is_available
-        dto.locked_reasons = reasons
+        dto.requires_documents = mission.id in REQUIRED_DOCUMENT_MISSIONS
+        if mission.id in completed_missions:
+            dto.is_completed = True
+            dto.is_available = False
+            dto.locked_reasons = ["Миссия уже завершена"]
+        else:
+            dto.is_completed = False
+            dto.is_available = is_available
+            dto.locked_reasons = reasons
         response.append(dto)
 
     return response
@@ -260,18 +271,28 @@ def get_mission(
         created_at=mission.created_at,
         updated_at=mission.updated_at,
     )
+    data.requires_documents = mission.id in REQUIRED_DOCUMENT_MISSIONS
+    if mission.id in completed_missions:
+        data.is_completed = True
+        data.is_available = False
+        data.locked_reasons = ["Миссия уже завершена"]
     return data
 
 
 @router.post("/{mission_id}/submit", response_model=MissionSubmissionRead, summary="Отправляем отчёт")
-def submit(
+async def submit(
     mission_id: int,
-    submission_in: MissionSubmissionCreate,
     *,
+    comment: str | None = Form(None),
+    proof_url: str | None = Form(None),
+    resume_link: str | None = Form(None),
+    passport: UploadFile | None = File(None),
+    photo: UploadFile | None = File(None),
+    resume_file: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> MissionSubmissionRead:
-    """Пилот отправляет доказательство выполнения миссии."""
+    """Пилот отправляет доказательство выполнения миссии и сопроводительные документы."""
 
     mission = db.query(Mission).filter(Mission.id == mission_id, Mission.is_active.is_(True)).first()
     if not mission:
@@ -297,13 +318,88 @@ def submit(
     )
     if not is_available:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="; ".join(reasons))
-    submission = submit_mission(
-        db=db,
-        user=current_user,
-        mission=mission,
-        comment=submission_in.comment,
-        proof_url=submission_in.proof_url,
+
+    existing_submission = (
+        db.query(MissionSubmission)
+        .filter(MissionSubmission.user_id == current_user.id, MissionSubmission.mission_id == mission.id)
+        .first()
     )
+
+    def _has_upload(upload: UploadFile | None) -> bool:
+        return bool(upload and upload.filename)
+
+    passport_required = mission.id in REQUIRED_DOCUMENT_MISSIONS
+    photo_required = mission.id in REQUIRED_DOCUMENT_MISSIONS
+    resume_required = mission.id in REQUIRED_DOCUMENT_MISSIONS
+
+    if passport_required and not (
+        (existing_submission and existing_submission.passport_path) or _has_upload(passport)
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Загрузите скан паспорта кандидата.")
+
+    if photo_required and not (
+        (existing_submission and existing_submission.photo_path) or _has_upload(photo)
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Добавьте актуальную фотографию кандидата.")
+
+    existing_resume_sources = bool(
+        existing_submission
+        and (existing_submission.resume_path or existing_submission.resume_link)
+    )
+    resume_link_trimmed = (resume_link or "").strip()
+    resume_file_provided = _has_upload(resume_file)
+    if resume_required and not (existing_resume_sources or resume_link_trimmed or resume_file_provided):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Добавьте ссылку на резюме или загрузите файл с резюме.",
+        )
+
+    new_passport_path = None
+    new_photo_path = None
+    new_resume_path = None
+
+    try:
+        if _has_upload(passport):
+            new_passport_path = save_submission_document(
+                upload=passport,
+                user_id=current_user.id,
+                mission_id=mission.id,
+                kind="passport",
+            )
+
+        if _has_upload(photo):
+            new_photo_path = save_submission_document(
+                upload=photo,
+                user_id=current_user.id,
+                mission_id=mission.id,
+                kind="photo",
+            )
+
+        if resume_file_provided:
+            new_resume_path = save_submission_document(
+                upload=resume_file,
+                user_id=current_user.id,
+                mission_id=mission.id,
+                kind="resume",
+            )
+
+        submission = submit_mission(
+            db=db,
+            user=current_user,
+            mission=mission,
+            comment=(comment or "").strip() or None,
+            proof_url=(proof_url or "").strip() or None,
+            passport_path=new_passport_path if new_passport_path is not None else UNSET,
+            photo_path=new_photo_path if new_photo_path is not None else UNSET,
+            resume_path=new_resume_path if new_resume_path is not None else UNSET,
+            resume_link=(resume_link_trimmed or None) if resume_link is not None else UNSET,
+        )
+    except Exception:
+        delete_submission_document(new_passport_path)
+        delete_submission_document(new_photo_path)
+        delete_submission_document(new_resume_path)
+        raise
+
     return MissionSubmissionRead.model_validate(submission)
 
 
@@ -328,3 +424,45 @@ def get_submission(
     if not submission:
         return None
     return MissionSubmissionRead.model_validate(submission)
+
+
+@router.get(
+    "/submissions/{submission_id}/files/{document}",
+    summary="Скачиваем загруженные файлы",
+)
+def download_submission_file(
+    submission_id: int,
+    document: str,
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> FileResponse:
+    """Возвращаем файл паспорта, фото или резюме."""
+
+    submission = db.query(MissionSubmission).filter(MissionSubmission.id == submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Отправка не найдена")
+
+    if submission.user_id != current_user.id and current_user.role != UserRole.HR:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к файлу")
+
+    attribute_map = {
+        "passport": submission.passport_path,
+        "photo": submission.photo_path,
+        "resume": submission.resume_path,
+    }
+
+    relative_path = attribute_map.get(document)
+    if not relative_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Файл не найден")
+
+    file_path = settings.uploads_path / relative_path
+    resolved = file_path.resolve()
+    base = settings.uploads_path.resolve()
+    if not resolved.is_relative_to(base):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Файл не найден")
+
+    if not resolved.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Файл не найден")
+
+    return FileResponse(resolved, filename=resolved.name)

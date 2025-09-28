@@ -12,6 +12,8 @@ export interface MissionSummary {
   is_active: boolean;
   is_available: boolean;
   locked_reasons: string[];
+  is_completed: boolean;
+  requires_documents: boolean;
 }
 
 const Card = styled.div`
@@ -28,29 +30,49 @@ export function MissionList({ missions }: { missions: MissionSummary[] }) {
 
   return (
     <div className="grid">
-      {missions.map((mission) => (
-        <Card key={mission.id}>
-          <span className="badge">{mission.difficulty}</span>
-          <h3 style={{ marginBottom: '0.5rem' }}>{mission.title}</h3>
-          <p style={{ color: 'var(--text-muted)', minHeight: '3rem' }}>{mission.description}</p>
-        <p style={{ marginTop: '1rem' }}>{mission.xp_reward} XP · {mission.mana_reward} ⚡</p>
-        {!mission.is_available && mission.locked_reasons.length > 0 && (
-          <p style={{ color: 'var(--error)', fontSize: '0.85rem' }}>{mission.locked_reasons[0]}</p>
-        )}
-        <a
-          className={mission.is_available ? 'primary' : 'secondary'}
-          style={{
-            display: 'inline-block',
-            marginTop: '1rem',
-            pointerEvents: mission.is_available ? 'auto' : 'none',
-            opacity: mission.is_available ? 1 : 0.5
-          }}
-          href={mission.is_available ? `/missions/${mission.id}` : '#'}
-        >
-          {mission.is_available ? 'Открыть брифинг' : 'Заблокировано'}
-        </a>
-      </Card>
-    ))}
+      {missions.map((mission) => {
+        const completed = mission.is_completed;
+        const locked = !mission.is_available && !completed;
+        const primaryClass = completed ? 'secondary' : locked ? 'secondary' : 'primary';
+        const linkDisabled = locked;
+        const actionLabel = completed
+          ? 'Миссия выполнена'
+          : mission.is_available
+          ? 'Открыть брифинг'
+          : 'Заблокировано';
+
+        return (
+          <Card key={mission.id} style={completed ? { opacity: 0.85 } : undefined}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="badge">{mission.difficulty}</span>
+              {completed && <span style={{ color: '#55efc4', fontSize: '0.85rem' }}>✓ завершено</span>}
+            </div>
+            {mission.requires_documents && !completed && (
+              <p style={{ marginTop: '0.25rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                🗂 Требуется загрузка документов
+              </p>
+            )}
+            <h3 style={{ marginBottom: '0.5rem' }}>{mission.title}</h3>
+            <p style={{ color: 'var(--text-muted)', minHeight: '3rem' }}>{mission.description}</p>
+            <p style={{ marginTop: '1rem' }}>{mission.xp_reward} XP · {mission.mana_reward} ⚡</p>
+            {locked && mission.locked_reasons.length > 0 && (
+              <p style={{ color: 'var(--error)', fontSize: '0.85rem' }}>{mission.locked_reasons[0]}</p>
+            )}
+            <a
+              className={primaryClass}
+              style={{
+                display: 'inline-block',
+                marginTop: '1rem',
+                pointerEvents: linkDisabled ? 'none' : 'auto',
+                opacity: linkDisabled ? 0.5 : 1
+              }}
+              href={linkDisabled ? '#' : `/missions/${mission.id}`}
+            >
+              {actionLabel}
+            </a>
+          </Card>
+        );
+      })}
   </div>
   );
 }

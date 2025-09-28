@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 from app.models.mission import MissionDifficulty, SubmissionStatus
 
@@ -22,6 +22,9 @@ class MissionBase(BaseModel):
     is_active: bool
     is_available: bool = True
     locked_reasons: list[str] = Field(default_factory=list)
+    is_completed: bool = False
+    requires_documents: bool = False
+    is_completed: bool = False
 
     class Config:
         from_attributes = True
@@ -92,6 +95,7 @@ class MissionSubmissionCreate(BaseModel):
 
     comment: Optional[str] = None
     proof_url: Optional[str] = None
+    resume_link: Optional[str] = None
 
 
 class MissionSubmissionRead(BaseModel):
@@ -102,9 +106,40 @@ class MissionSubmissionRead(BaseModel):
     status: SubmissionStatus
     comment: Optional[str]
     proof_url: Optional[str]
+    resume_link: Optional[str]
     awarded_xp: int
     awarded_mana: int
     updated_at: datetime
+    passport_path: Optional[str] = Field(default=None, exclude=True)
+    photo_path: Optional[str] = Field(default=None, exclude=True)
+    resume_path: Optional[str] = Field(default=None, exclude=True)
 
     class Config:
         from_attributes = True
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def passport_url(self) -> Optional[str]:
+        """Ссылка для скачивания файла паспорта."""
+
+        if self.passport_path:
+            return f"/api/missions/submissions/{self.id}/files/passport"
+        return None
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def photo_url(self) -> Optional[str]:
+        """Ссылка на загруженную фотографию."""
+
+        if self.photo_path:
+            return f"/api/missions/submissions/{self.id}/files/photo"
+        return None
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def resume_url(self) -> Optional[str]:
+        """Ссылка на загруженный файл резюме."""
+
+        if self.resume_path:
+            return f"/api/missions/submissions/{self.id}/files/resume"
+        return None

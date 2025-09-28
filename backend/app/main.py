@@ -2,38 +2,94 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
+from app import models  # noqa: F401 - важно, чтобы Base знала обо всех моделях
 from app.api.routes import admin, auth, journal, missions, onboarding, store, users
 from app.core.config import settings
 from app.core.security import get_password_hash
-from app.db.session import SessionLocal
-from app.models.user import User, UserRole
+from app.db.session import SessionLocal, engine
 from app.models.rank import Rank
-# Import all models to ensure they're registered with Base.metadata
-from app import models  # This imports all models through the __init__.py
+from app.models.user import User, UserRole
+
+ALEMBIC_CONFIG = Path(__file__).resolve().parents[1] / "alembic.ini"
 
 app = FastAPI(title=settings.project_name)
 
 
+def run_migrations() -> None:
+    """Прогоняем миграции Alembic, поддерживая легаси-базы без alembic_version."""
+
+    config = Config(str(ALEMBIC_CONFIG))
+    config.set_main_option("sqlalchemy.url", str(settings.database_url))
+    script = ScriptDirectory.from_config(config)
+    head_revision = script.get_current_head()
+
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+
+    current_revision: str | None = None
+    if "alembic_version" in tables:
+        with engine.begin() as conn:
+            row = conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1")).fetchone()
+            current_revision = row[0] if row else None
+
+    if "alembic_version" not in tables or current_revision is None:
+        if not tables:
+            command.upgrade(config, "head")
+            return
+
+        user_columns = set()
+        if "users" in tables:
+            user_columns = {column["name"] for column in inspector.get_columns("users")}
+
+        submission_columns = set()
+        if "mission_submissions" in tables:
+            submission_columns = {column["name"] for column in inspector.get_columns("mission_submissions")}
+
+        with engine.begin() as conn:
+            if "preferred_branch" not in user_columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN preferred_branch VARCHAR(160)"))
+            if "motivation" not in user_columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN motivation TEXT"))
+
+            if "passport_path" not in submission_columns:
+                conn.execute(text("ALTER TABLE mission_submissions ADD COLUMN passport_path VARCHAR(512)"))
+            if "photo_path" not in submission_columns:
+                conn.execute(text("ALTER TABLE mission_submissions ADD COLUMN photo_path VARCHAR(512)"))
+            if "resume_path" not in submission_columns:
+                conn.execute(text("ALTER TABLE mission_submissions ADD COLUMN resume_path VARCHAR(512)"))
+            if "resume_link" not in submission_columns:
+                conn.execute(text("ALTER TABLE mission_submissions ADD COLUMN resume_link VARCHAR(512)"))
+
+            conn.execute(text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL)"))
+            conn.execute(text("DELETE FROM alembic_version"))
+            conn.execute(text("INSERT INTO alembic_version (version_num) VALUES (:rev)"), {"rev": head_revision})
+
+    command.upgrade(config, "head")
+
+
 def create_demo_users() -> None:
-    """Create demo users if they don't exist."""
+    """Создаём демо-пользователей, чтобы упростить проверку сценариев."""
+
     session: Session = SessionLocal()
     try:
-        # Check if demo users already exist
         pilot_exists = session.query(User).filter(User.email == "candidate@alabuga.space").first()
         hr_exists = session.query(User).filter(User.email == "hr@alabuga.space").first()
-        
+
         if pilot_exists and hr_exists:
-            print("✅ Demo users already exist")
             return
-        
-        # Get base rank (or None if no ranks exist)
+
         base_rank = session.query(Rank).order_by(Rank.required_xp).first()
-        
-        # Create pilot demo user
+
         if not pilot_exists:
             pilot = User(
                 email="candidate@alabuga.space",
@@ -46,9 +102,7 @@ def create_demo_users() -> None:
                 motivation="Хочу пройти все миссии и закрепиться в экипаже.",
             )
             session.add(pilot)
-            print("✅ Created demo pilot user: candidate@alabuga.space / orbita123")
-        
-        # Create HR demo user
+
         if not hr_exists:
             hr_rank = session.query(Rank).order_by(Rank.required_xp.desc()).first()
             hr = User(
@@ -61,17 +115,10 @@ def create_demo_users() -> None:
                 preferred_branch="Куратор миссий",
             )
             session.add(hr)
-            print("✅ Created demo HR user: hr@alabuga.space / orbita123")
-        
+
         session.commit()
-    except Exception as e:
-        print(f"❌ Failed to create demo users: {e}")
-        session.rollback()
     finally:
         session.close()
-
-
-app = FastAPI(title=settings.project_name)
 
 
 app.add_middleware(
@@ -93,9 +140,11 @@ app.include_router(admin.router)
 
 
 @app.on_event("startup")
-async def startup_event():
-    """Create demo users on startup if in debug mode."""
-    if settings.debug:
+async def on_startup() -> None:
+    """При запуске обновляем схему БД и подготавливаем демо-данные."""
+
+    run_migrations()
+    if settings.environment != "production":
         create_demo_users()
 
 
@@ -103,4 +152,4 @@ async def startup_event():
 def healthcheck() -> dict[str, str]:
     """Простой ответ для Docker healthcheck."""
 
-    return {"status": "ok"}
+    return {"status": "ok", "environment": settings.environment}

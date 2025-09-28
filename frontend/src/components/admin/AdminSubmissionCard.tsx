@@ -10,6 +10,10 @@ type Submission = {
   status: string;
   comment: string | null;
   proof_url: string | null;
+  resume_link: string | null;
+  passport_url: string | null;
+  photo_url: string | null;
+  resume_url: string | null;
   awarded_xp: number;
   awarded_mana: number;
   updated_at: string;
@@ -55,6 +59,23 @@ export function AdminSubmissionCard({ submission, token }: Props) {
           </a>
         </p>
       )}
+      <div style={{ marginTop: '0.5rem' }}>
+        <strong>Документы кандидата:</strong>
+        <ul style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0' }}>
+          <li>
+            Паспорт: {submission.passport_url ? <a href={submission.passport_url} target="_blank" rel="noreferrer">скачать</a> : 'нет файла'}
+          </li>
+          <li>
+            Фото: {submission.photo_url ? <a href={submission.photo_url} target="_blank" rel="noreferrer">скачать</a> : 'нет файла'}
+          </li>
+          <li>
+            Резюме (файл): {submission.resume_url ? <a href={submission.resume_url} target="_blank" rel="noreferrer">скачать</a> : 'нет файла'}
+          </li>
+          <li>
+            Резюме (ссылка): {submission.resume_link ? <a href={submission.resume_link} target="_blank" rel="noreferrer">открыть</a> : 'не указана'}
+          </li>
+        </ul>
+      </div>
       <small style={{ color: 'var(--text-muted)' }}>
         Обновлено: {new Date(submission.updated_at).toLocaleString('ru-RU')}
       </small>
@@ -79,4 +100,3 @@ export function AdminSubmissionCard({ submission, token }: Props) {
     </div>
   );
 }
-

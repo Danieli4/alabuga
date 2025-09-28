@@ -62,7 +62,7 @@ export default async function LoginPage({
     <section className={styles.container}>
       <SpaceBackground />
       <form className={styles.form} action={authenticate}>
-        <h1>Вход в Mission Control</h1>
+        <h1>Вход в «Автостопом по Алабуге»</h1>
         {/* Подсказка для демо-режима, чтобы не искать логин/пароль в README. */}
         <p className={styles.hint}>
           Используйте демо-учётные записи: <strong>candidate@alabuga.space / orbita123</strong> или

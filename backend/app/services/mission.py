@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -10,10 +12,23 @@ from app.models.mission import Mission, MissionSubmission, SubmissionStatus
 from app.models.user import User, UserArtifact, UserCompetency
 from app.services.journal import log_event
 from app.services.rank import apply_rank_upgrade
+from app.services.storage import delete_submission_document
+
+
+UNSET: Any = object()
 
 
 def submit_mission(
-    *, db: Session, user: User, mission: Mission, comment: str | None, proof_url: str | None
+    *,
+    db: Session,
+    user: User,
+    mission: Mission,
+    comment: str | None,
+    proof_url: str | None,
+    passport_path: Any = UNSET,
+    photo_path: Any = UNSET,
+    resume_path: Any = UNSET,
+    resume_link: Any = UNSET,
 ) -> MissionSubmission:
     """Создаём или обновляем отправку."""
 
@@ -30,6 +45,25 @@ def submit_mission(
 
     submission.comment = comment
     submission.proof_url = proof_url
+
+    if passport_path is not UNSET:
+        if isinstance(passport_path, str) and submission.passport_path and submission.passport_path != passport_path:
+            delete_submission_document(submission.passport_path)
+        submission.passport_path = passport_path if isinstance(passport_path, str) else None
+
+    if photo_path is not UNSET:
+        if isinstance(photo_path, str) and submission.photo_path and submission.photo_path != photo_path:
+            delete_submission_document(submission.photo_path)
+        submission.photo_path = photo_path if isinstance(photo_path, str) else None
+
+    if resume_path is not UNSET:
+        if isinstance(resume_path, str) and submission.resume_path and submission.resume_path != resume_path:
+            delete_submission_document(submission.resume_path)
+        submission.resume_path = resume_path if isinstance(resume_path, str) else None
+
+    if resume_link is not UNSET:
+        submission.resume_link = resume_link if isinstance(resume_link, str) else None
+
     submission.status = SubmissionStatus.PENDING
 
     db.add(submission)

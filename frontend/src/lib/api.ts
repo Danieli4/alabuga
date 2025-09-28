@@ -7,7 +7,11 @@ export interface RequestOptions extends RequestInit {
 
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
-  headers.set('Content-Type', 'application/json');
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
+  if (!isFormData && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
   if (options.authToken) {
     headers.set('Authorization', `Bearer ${options.authToken}`);
   }
@@ -20,8 +24,25 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   });
 
   if (!response.ok) {
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.includes('application/json')) {
+      try {
+        const data = await response.json();
+        const detail = data?.detail ?? data?.message ?? data?.error;
+        if (detail) {
+          throw new Error(String(detail));
+        }
+        throw new Error(`Запрос завершился ошибкой (${response.status}).`);
+      } catch (parseError) {
+        if (parseError instanceof Error) {
+          throw parseError;
+        }
+        throw new Error(`Запрос завершился ошибкой (${response.status}).`);
+      }
+    }
+
     const text = await response.text();
-    throw new Error(`API error ${response.status}: ${text}`);
+    throw new Error(text || `Запрос завершился ошибкой (${response.status}).`);
   }
   if (response.status === 204) {
     return undefined as T;

@@ -12,6 +12,10 @@ interface Submission {
   status: string;
   comment: string | null;
   proof_url: string | null;
+  resume_link: string | null;
+  passport_url: string | null;
+  photo_url: string | null;
+  resume_url: string | null;
   awarded_xp: number;
   awarded_mana: number;
   updated_at: string;

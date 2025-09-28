@@ -4,8 +4,8 @@ import '../styles/globals.css';
 import { getSession } from '../lib/auth/session';
 
 export const metadata: Metadata = {
-  title: 'Alabuga Mission Control',
-  description: 'Космический модуль геймификации для пилотов Алабуги'
+  title: 'Автостопом по Алабуге',
+  description: 'Галактогид по миссиям и рангам Алабуги в духе «Автостопом по Галактике»'
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -24,6 +24,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   } else if (isHr && !viewingAsPilot) {
     links = [
       { href: '/admin', label: 'HR панель' },
+      { href: '/leaderboard', label: 'Лидерборд' },
       { href: '/admin/view-as', label: 'Просмотр от лица пилота' },
     ];
   } else {
@@ -33,6 +34,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       { href: '/missions', label: 'Миссии' },
       { href: '/journal', label: 'Журнал' },
       { href: '/store', label: 'Магазин' },
+      { href: '/leaderboard', label: 'Лидерборд' },
     ];
     if (isHr) {
       // Дополнительный пункт для HR: быстрый выход из режима просмотра.
@@ -57,9 +59,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             }}
           >
             <div>
-              <h1 style={{ margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Mission Control</h1>
+              <h1 style={{ margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Автостопом по Алабуге</h1>
               <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-                Путь пилота от искателя до командира космической эскадры
+                Всегда держите полотенце под рукой и следуйте подсказкам бортового гидронавигатора
               </p>
             </div>
             <nav style={{ display: 'flex', gap: '1rem', alignItems: 'center', fontWeight: 500 }}>

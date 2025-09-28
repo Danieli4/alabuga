@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", env_prefix="ALABUGA_", extra="ignore")
 
     project_name: str = "Alabuga Gamification API"
+    environment: str = "local"
     debug: bool = False
     secret_key: str = "super-secret-key-change-me"
     jwt_algorithm: str = "HS256"
@@ -31,6 +32,7 @@ class Settings(BaseSettings):
     ]
 
     sqlite_path: Path = Path("/data/app.db")
+    uploads_path: Path = Path("./data/uploads")
 
     @property
     def database_url(self) -> str:
@@ -48,7 +50,11 @@ def get_settings() -> Settings:
     if not settings.sqlite_path.is_absolute():
         settings.sqlite_path = (BASE_DIR / settings.sqlite_path).resolve()
 
+    if not settings.uploads_path.is_absolute():
+        settings.uploads_path = (BASE_DIR / settings.uploads_path).resolve()
+
     settings.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.uploads_path.mkdir(parents=True, exist_ok=True)
     return settings
 
 

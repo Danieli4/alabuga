@@ -117,6 +117,10 @@ class MissionSubmission(Base, TimestampMixin):
     )
     comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     proof_url: Mapped[Optional[str]] = mapped_column(String(512))
+    passport_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    photo_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    resume_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    resume_link: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     awarded_xp: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     awarded_mana: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 

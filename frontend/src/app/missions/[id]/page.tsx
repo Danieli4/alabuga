@@ -19,11 +19,27 @@ interface MissionDetail {
   }>;
   is_available: boolean;
   locked_reasons: string[];
+  is_completed: boolean;
+  requires_documents: boolean;
 }
 
 async function fetchMission(id: number, token: string) {
-  const mission = await apiFetch<MissionDetail>(`/api/missions/${id}`, { authToken: token });
-  return { mission };
+  const [mission, submission] = await Promise.all([
+    apiFetch<MissionDetail>(`/api/missions/${id}`, { authToken: token }),
+    apiFetch<MissionSubmission | null>(`/api/missions/${id}/submission`, { authToken: token })
+  ]);
+  return { mission, submission };
+}
+
+interface MissionSubmission {
+  id: number;
+  comment: string | null;
+  proof_url: string | null;
+  resume_link: string | null;
+  passport_url: string | null;
+  photo_url: string | null;
+  resume_url: string | null;
+  status: 'pending' | 'approved' | 'rejected';
 }
 
 interface MissionPageProps {
@@ -34,7 +50,7 @@ export default async function MissionPage({ params }: MissionPageProps) {
   const missionId = Number(params.id);
   // Даже при прямом переходе на URL миссия доступна только авторизованным пользователям.
   const session = await requireSession();
-  const { mission } = await fetchMission(missionId, session.token);
+  const { mission, submission } = await fetchMission(missionId, session.token);
 
   return (
     <section>
@@ -44,7 +60,22 @@ export default async function MissionPage({ params }: MissionPageProps) {
       <p style={{ marginTop: '1rem' }}>
         Награда: {mission.xp_reward} XP · {mission.mana_reward} ⚡
       </p>
-      {!mission.is_available && mission.locked_reasons.length > 0 && (
+      {mission.is_completed && (
+        <div
+          className="card"
+          style={{
+            marginTop: '1rem',
+            border: '1px solid rgba(85, 239, 196, 0.35)',
+            background: 'rgba(85, 239, 196, 0.12)'
+          }}
+        >
+          <strong>Миссия завершена</strong>
+          <p style={{ marginTop: '0.5rem', color: 'var(--text-muted)' }}>
+            HR уже подтвердил выполнение. Вы можете просмотреть прикреплённые документы ниже.
+          </p>
+        </div>
+      )}
+      {!mission.is_available && !mission.is_completed && mission.locked_reasons.length > 0 && (
         <div className="card" style={{ border: '1px solid rgba(255, 118, 117, 0.5)', background: 'rgba(255,118,117,0.1)' }}>
           <strong>Миссия заблокирована</strong>
           <ul style={{ marginTop: '0.5rem' }}>
@@ -65,7 +96,14 @@ export default async function MissionPage({ params }: MissionPageProps) {
           {mission.competency_rewards.length === 0 && <li>Нет прокачки компетенций.</li>}
         </ul>
       </div>
-      <MissionSubmissionForm missionId={mission.id} token={session.token} locked={!mission.is_available} />
+      <MissionSubmissionForm
+        missionId={mission.id}
+        token={session.token}
+        locked={!mission.is_available && !mission.is_completed}
+        completed={mission.is_completed}
+        requiresDocuments={mission.requires_documents}
+        submission={submission ?? undefined}
+      />
     </section>
   );
 }
