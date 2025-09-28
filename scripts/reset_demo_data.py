@@ -6,6 +6,7 @@ import shutil
 
 from pathlib import Path
 import sys
+import os
 
 from sqlalchemy.orm import Session
 
@@ -24,7 +25,12 @@ from app.models.user import User
 def reset() -> None:
     """Очищаем пользовательскую активность и загруженные документы."""
 
-    run_migrations()
+    original_cwd = Path.cwd()
+    try:
+        os.chdir(ROOT / 'backend')
+        run_migrations()
+    finally:
+        os.chdir(original_cwd)
 
     session: Session = SessionLocal()
     try:

@@ -1,5 +1,7 @@
 .PHONY: help build migrate migrate-create start dev stop logs clean test lint format check-db reset-db shell
 
+PYTHON ?= backend/.venv/bin/python
+
 # Default target
 help: ## Show this help message
 	@echo "Available commands:"
@@ -52,6 +54,13 @@ reset-db: ## Reset database (remove and recreate)
 	else \
 		echo "❌ Database reset cancelled."; \
 	fi
+
+reset-demo: ## Очистить демонстрационные данные (миссии, журнал, вложения)
+	@if [ ! -x "$(PYTHON)" ]; then \
+		echo "❌ Backend venv не найден. Выполните 'cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements-dev.txt'"; \
+		exit 1; \
+	fi
+	PYTHONPATH=$(PWD) $(PYTHON) -m scripts.reset_demo_data
 
 # Development commands
 start: migrate ## Run migrations and start all services
