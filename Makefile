@@ -9,9 +9,6 @@ help: ## Show this help message
 build: ## Build Docker containers
 	docker compose build
 
-build-no-cache: ## Build Docker containers without cache
-	docker compose build --no-cache
-
 # Database commands
 migrate: build ## Run database migrations in Docker
 	docker compose run --rm backend python -m app.db.init
