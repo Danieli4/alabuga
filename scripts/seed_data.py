@@ -356,7 +356,7 @@ def seed() -> None:
                 RankMissionRequirement(rank_id=ranks[1].id, mission_id=mission_resume.id),
                 RankMissionRequirement(rank_id=ranks[2].id, mission_id=mission_interview.id),
                 RankMissionRequirement(rank_id=ranks[2].id, mission_id=mission_onboarding.id),
-                RankMissionRequirement(rank_id=ranks[2].id, mission_id=mission_python.id),
+                RankMissionRequirement(rank_id=ranks[2].id, mission_id=mission_python_basics.id),
             ]
         )
 
