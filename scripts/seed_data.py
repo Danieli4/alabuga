@@ -16,6 +16,7 @@ from app.core.security import get_password_hash
 from app.db.session import SessionLocal
 from app.models.artifact import Artifact, ArtifactRarity
 from app.models.branch import Branch, BranchMission
+from app.models.coding import CodingChallenge
 from app.models.mission import Mission, MissionCompetencyReward, MissionDifficulty
 from app.models.rank import Rank, RankCompetencyRequirement, RankMissionRequirement
 from app.models.onboarding import OnboardingSlide

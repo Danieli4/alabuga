@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import Boolean, Enum as SQLEnum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.coding import CodingChallenge
 
 
 class MissionDifficulty(str, Enum):
@@ -55,6 +58,12 @@ class Mission(Base, TimestampMixin):
     )
     rank_requirements: Mapped[List["RankMissionRequirement"]] = relationship(
         "RankMissionRequirement", back_populates="mission"
+    )
+    coding_challenges: Mapped[List["CodingChallenge"]] = relationship(
+        "CodingChallenge",
+        back_populates="mission",
+        cascade="all, delete-orphan",
+        order_by="CodingChallenge.order",
     )
 
 

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
+from app.models.coding import CodingAttempt, CodingChallenge
 from app.models.branch import Branch, BranchMission
 from app.models.mission import Mission, MissionSubmission, SubmissionStatus
 from app.models.user import User, UserRole
@@ -19,6 +20,13 @@ from app.schemas.mission import (
     MissionDetail,
     MissionSubmissionRead,
 )
+from app.schemas.coding import (
+    CodingChallengeState,
+    CodingMissionState,
+    CodingRunRequest,
+    CodingRunResponse,
+)
+from app.services.coding import count_completed_challenges, evaluate_challenge
 from app.services.mission import UNSET, submit_mission
 from app.services.storage import delete_submission_document, save_submission_document
 from app.core.config import settings
@@ -87,6 +95,91 @@ def _mission_availability(
     is_available = mission.is_active and not reasons
     return is_available, reasons
 
+
+def _ensure_mission_access(
+    *,
+    mission: Mission,
+    user: User,
+    db: Session,
+) -> tuple[bool, set[int]]:
+    """Проверяем, что миссия активна и доступна пилоту."""
+
+    db.refresh(user)
+    _ = user.submissions
+
+    branches = (
+        db.query(Branch)
+        .options(selectinload(Branch.missions))
+        .all()
+    )
+    branch_dependencies = _build_branch_dependencies(branches)
+    completed_missions = _load_user_progress(user)
+    mission_titles = dict(db.query(Mission.id, Mission.title).all())
+
+    is_available, reasons = _mission_availability(
+        mission=mission,
+        user=user,
+        completed_missions=completed_missions,
+        branch_dependencies=branch_dependencies,
+        mission_titles=mission_titles,
+    )
+
+    if mission.id not in completed_missions and not is_available:
+        message = reasons[0] if reasons else "Миссия пока недоступна."
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=message)
+
+    return mission.id in completed_missions, completed_missions
+
+
+def _build_challenge_state(
+    *,
+    challenges: list[CodingChallenge],
+    attempts: list[CodingAttempt],
+) -> tuple[list[CodingChallengeState], int, int, int | None]:
+    """Формируем состояние каждого задания."""
+
+    latest_attempts: dict[int, CodingAttempt] = {}
+    completed_ids: set[int] = set()
+
+    for attempt in sorted(attempts, key=lambda item: item.created_at, reverse=True):
+        if attempt.challenge_id not in latest_attempts:
+            latest_attempts[attempt.challenge_id] = attempt
+        if attempt.is_passed:
+            completed_ids.add(attempt.challenge_id)
+
+    completed_count = len(completed_ids)
+    total = len(challenges)
+
+    states: list[CodingChallengeState] = []
+    current_id: int | None = None
+
+    for challenge in challenges:
+        last_attempt = latest_attempts.get(challenge.id)
+        is_passed = challenge.id in completed_ids
+        is_unlocked = is_passed
+
+        if not is_passed and current_id is None:
+            current_id = challenge.id
+            is_unlocked = True
+
+        states.append(
+            CodingChallengeState(
+                id=challenge.id,
+                order=challenge.order,
+                title=challenge.title,
+                prompt=challenge.prompt,
+                starter_code=challenge.starter_code,
+                is_passed=is_passed,
+                is_unlocked=is_unlocked,
+                last_submitted_code=last_attempt.code if last_attempt else None,
+                last_stdout=last_attempt.stdout if last_attempt else None,
+                last_stderr=last_attempt.stderr if last_attempt else None,
+                last_exit_code=last_attempt.exit_code if last_attempt else None,
+                updated_at=last_attempt.updated_at if last_attempt else None,
+            )
+        )
+
+    return states, total, completed_count, current_id
 
 @router.get("/branches", response_model=list[BranchRead], summary="Список веток миссий")
 def list_branches(
@@ -180,6 +273,7 @@ def list_missions(
         .options(
             selectinload(Mission.prerequisites),
             selectinload(Mission.minimum_rank),
+            selectinload(Mission.coding_challenges),
         )
         .filter(Mission.is_active.is_(True))
         .order_by(Mission.id)
@@ -188,6 +282,11 @@ def list_missions(
 
     mission_titles = {mission.id: mission.title for mission in missions}
     completed_missions = _load_user_progress(current_user)
+    coding_progress = count_completed_challenges(
+        db,
+        mission_ids=[mission.id for mission in missions if mission.coding_challenges],
+        user=current_user,
+    )
 
     response: list[MissionBase] = []
     for mission in missions:
@@ -239,7 +338,12 @@ def get_mission(
 ) -> MissionDetail:
     """Возвращаем подробную информацию о миссии."""
 
-    mission = db.query(Mission).filter(Mission.id == mission_id, Mission.is_active.is_(True)).first()
+    mission = (
+        db.query(Mission)
+        .options(selectinload(Mission.coding_challenges))
+        .filter(Mission.id == mission_id, Mission.is_active.is_(True))
+        .first()
+    )
     if not mission:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Миссия не найдена")
 
@@ -253,6 +357,7 @@ def get_mission(
     branch_dependencies = _build_branch_dependencies(branches)
     completed_missions = _load_user_progress(current_user)
     mission_titles = dict(db.query(Mission.id, Mission.title).all())
+    coding_progress = count_completed_challenges(db, mission_ids=[mission.id], user=current_user)
 
     is_available, reasons = _mission_availability(
         mission=mission,
@@ -317,6 +422,124 @@ def get_mission(
         data.is_available = False
         data.locked_reasons = ["Миссия уже завершена"]
     return data
+
+
+@router.get(
+    "/{mission_id}/coding/challenges",
+    response_model=CodingMissionState,
+    summary="Получаем список заданий по Python",
+)
+def get_coding_challenges(
+    mission_id: int,
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CodingMissionState:
+    """Возвращаем состояние миссии с программированием."""
+
+    mission = (
+        db.query(Mission)
+        .options(selectinload(Mission.coding_challenges))
+        .filter(Mission.id == mission_id, Mission.is_active.is_(True))
+        .first()
+    )
+    if not mission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Миссия не найдена")
+
+    if not mission.coding_challenges:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Для миссии не настроены задания на программирование.",
+        )
+
+    mission_completed, completed_missions = _ensure_mission_access(
+        mission=mission,
+        user=current_user,
+        db=db,
+    )
+
+    challenge_ids = [challenge.id for challenge in mission.coding_challenges]
+    attempts: list[CodingAttempt] = []
+    if challenge_ids:
+        attempts = (
+            db.query(CodingAttempt)
+            .filter(
+                CodingAttempt.user_id == current_user.id,
+                CodingAttempt.challenge_id.in_(challenge_ids),
+            )
+            .order_by(CodingAttempt.created_at.desc())
+            .all()
+        )
+
+    states, total, completed_count, current_id = _build_challenge_state(
+        challenges=sorted(mission.coding_challenges, key=lambda item: item.order),
+        attempts=attempts,
+    )
+
+    if mission.id in completed_missions:
+        mission_completed = True
+
+    return CodingMissionState(
+        mission_id=mission.id,
+        total_challenges=total,
+        completed_challenges=completed_count,
+        current_challenge_id=current_id,
+        is_mission_completed=mission_completed,
+        challenges=states,
+    )
+
+
+@router.post(
+    "/{mission_id}/coding/challenges/{challenge_id}/run",
+    response_model=CodingRunResponse,
+    summary="Проверяем решение задания",
+)
+def run_coding_challenge(
+    mission_id: int,
+    challenge_id: int,
+    payload: CodingRunRequest,
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CodingRunResponse:
+    """Запускаем Python-код кандидата и возвращаем результат."""
+
+    mission = (
+        db.query(Mission)
+        .options(selectinload(Mission.coding_challenges))
+        .filter(Mission.id == mission_id, Mission.is_active.is_(True))
+        .first()
+    )
+    if not mission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Миссия не найдена")
+
+    mission_completed, _ = _ensure_mission_access(mission=mission, user=current_user, db=db)
+
+    challenge = next((item for item in mission.coding_challenges if item.id == challenge_id), None)
+    if not challenge:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задание не найдено")
+
+    evaluation = evaluate_challenge(
+        db,
+        challenge=challenge,
+        user=current_user,
+        code=payload.code,
+    )
+
+    mission_completed = mission_completed or evaluation.mission_completed
+    expected_output = None
+    if not evaluation.attempt.is_passed:
+        expected_output = challenge.expected_output
+
+    return CodingRunResponse(
+        attempt_id=evaluation.attempt.id,
+        stdout=evaluation.attempt.stdout,
+        stderr=evaluation.attempt.stderr,
+        exit_code=evaluation.attempt.exit_code,
+        is_passed=evaluation.attempt.is_passed,
+        mission_completed=mission_completed,
+        expected_output=expected_output,
+    )
 
 
 @router.post("/{mission_id}/submit", response_model=MissionSubmissionRead, summary="Отправляем отчёт")

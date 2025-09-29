@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import Boolean, DateTime, Enum as SQLEnum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -13,6 +13,9 @@ from app.models.base import Base, TimestampMixin
 
 # Локальные импорты внизу файла, чтобы избежать циклов типов
 
+
+if TYPE_CHECKING:
+    from app.models.coding import CodingAttempt
 
 class UserRole(str, Enum):
     """Типы ролей в системе."""
@@ -60,6 +63,9 @@ class User(Base, TimestampMixin):
     )
     onboarding_state: Mapped[Optional["OnboardingState"]] = relationship(
         "OnboardingState", back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
+    coding_attempts: Mapped[List["CodingAttempt"]] = relationship(
+        "CodingAttempt", back_populates="user", cascade="all, delete-orphan"
     )
 
 
