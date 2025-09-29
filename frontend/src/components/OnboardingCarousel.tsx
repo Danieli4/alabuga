@@ -78,6 +78,8 @@ export function OnboardingCarousel({ token, slides, initialCompletedOrder, nextO
             border: '1px solid rgba(162, 155, 254, 0.25)'
           }}
         >
+          {/* В медиаконтенте могут встречаться внешние изображения, которые Next.js не умеет оптимизировать автоматически. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={currentSlide.media_url} alt={currentSlide.title} style={{ width: '100%', height: 'auto' }} />
         </div>
       )}

@@ -1,6 +1,6 @@
 'use client';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../lib/api';
 
 interface CodingChallengeState {
@@ -46,56 +46,59 @@ interface RunResult {
 export function CodingMissionPanel({ missionId, token, initialState, initialCompleted = false }: CodingMissionPanelProps) {
   const [state, setState] = useState<CodingMissionState | null>(initialState);
   const [missionCompleted, setMissionCompleted] = useState(initialState?.is_mission_completed || initialCompleted);
-  const [activeChallengeId, setActiveChallengeId] = useState<number | null>(
-    initialState?.current_challenge_id ?? initialState?.challenges?.[0]?.id ?? null
-  );
-  const [editorCode, setEditorCode] = useState<string>(() => {
-    const active = initialState?.challenges.find((challenge) => challenge.id === activeChallengeId);
-    if (!active) {
-      return '';
-    }
-    return active.last_submitted_code ?? active.starter_code ?? '';
-  });
+  const [editorCode, setEditorCode] = useState<string>('');
   const [status, setStatus] = useState<string | null>(null);
   const [runResult, setRunResult] = useState<RunResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const previousChallengeIdRef = useRef<number | null>(null);
+
 
   const activeChallenge = useMemo(() => {
     if (!state || !state.challenges.length) {
       return null;
     }
-    const targetId = state.current_challenge_id ?? activeChallengeId;
-    if (targetId == null) {
-      return null;
+    if (state.current_challenge_id) {
+      const current = state.challenges.find((challenge) => challenge.id === state.current_challenge_id);
+      if (current) {
+        return current;
+      }
     }
-    return state.challenges.find((challenge) => challenge.id === targetId) ?? null;
-  }, [state, activeChallengeId]);
+
+    const nextUnlocked = state.challenges.find((challenge) => challenge.is_unlocked && !challenge.is_passed);
+    if (nextUnlocked) {
+      return nextUnlocked;
+    }
+
+    const firstIncomplete = state.challenges.find((challenge) => !challenge.is_passed);
+    if (firstIncomplete) {
+      return firstIncomplete;
+    }
+
+    return state.challenges[state.challenges.length - 1];
+  }, [state]);
 
   useEffect(() => {
-    if (!state || !state.challenges.length) {
+    if (!state) {
       return;
     }
-    const nextActiveId = state.current_challenge_id ?? state.challenges[state.challenges.length - 1].id;
-    if (nextActiveId !== activeChallengeId) {
-      setActiveChallengeId(nextActiveId);
-      const nextChallenge = state.challenges.find((challenge) => challenge.id === nextActiveId);
-      const nextCode = nextChallenge?.last_submitted_code ?? nextChallenge?.starter_code ?? '';
-      setEditorCode(nextCode);
-      setRunResult(null);
-      setStatus(null);
-    }
     setMissionCompleted(state.is_mission_completed);
-  }, [state, activeChallengeId]);
+  }, [state]);
 
   useEffect(() => {
     if (!activeChallenge) {
+      previousChallengeIdRef.current = null;
       return;
     }
-    if (editorCode) {
+
+    if (previousChallengeIdRef.current === activeChallenge.id) {
       return;
     }
+
+    previousChallengeIdRef.current = activeChallenge.id;
     const baseCode = activeChallenge.last_submitted_code ?? activeChallenge.starter_code ?? '';
     setEditorCode(baseCode);
+    setRunResult(null);
+    setStatus(null);
   }, [activeChallenge]);
 
   if (!state) {
@@ -113,10 +116,16 @@ export function CodingMissionPanel({ missionId, token, initialState, initialComp
     if (!token) {
       return;
     }
-    const updated = await apiFetch<CodingMissionState>(`/api/missions/${missionId}/coding/challenges`, {
-      authToken: token
-    });
-    setState(updated);
+    try {
+      const updated = await apiFetch<CodingMissionState>(`/api/missions/${missionId}/coding/challenges`, {
+        authToken: token
+      });
+      setState(updated);
+    } catch (error) {
+      if (error instanceof Error) {
+        setStatus(error.message);
+      }
+    }
   };
 
   const handleRun = async () => {
