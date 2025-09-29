@@ -1,6 +1,6 @@
 'use client';
-
 import { useEffect, useMemo, useRef, useState } from 'react';
+
 import { apiFetch } from '../lib/api';
 
 interface CodingChallengeState {
@@ -52,11 +52,11 @@ export function CodingMissionPanel({ missionId, token, initialState, initialComp
   const [loading, setLoading] = useState(false);
   const previousChallengeIdRef = useRef<number | null>(null);
 
+
   const activeChallenge = useMemo(() => {
     if (!state || !state.challenges.length) {
       return null;
     }
-
     if (state.current_challenge_id) {
       const current = state.challenges.find((challenge) => challenge.id === state.current_challenge_id);
       if (current) {

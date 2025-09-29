@@ -21,6 +21,7 @@ from app.models.mission import Mission, MissionCompetencyReward, MissionDifficul
 from app.models.rank import Rank, RankCompetencyRequirement, RankMissionRequirement
 from app.models.onboarding import OnboardingSlide
 from app.models.store import StoreItem
+from app.models.python import PythonChallenge
 from app.models.user import Competency, CompetencyCategory, User, UserCompetency, UserRole, UserArtifact
 from app.models.journal import JournalEntry, JournalEventType
 from app.main import run_migrations
@@ -355,6 +356,7 @@ def seed() -> None:
                 RankMissionRequirement(rank_id=ranks[1].id, mission_id=mission_resume.id),
                 RankMissionRequirement(rank_id=ranks[2].id, mission_id=mission_interview.id),
                 RankMissionRequirement(rank_id=ranks[2].id, mission_id=mission_onboarding.id),
+                RankMissionRequirement(rank_id=ranks[2].id, mission_id=mission_python_basics.id),
             ]
         )
 

@@ -13,6 +13,7 @@ from app.models.coding import CodingAttempt, CodingChallenge
 from app.models.branch import Branch, BranchMission
 from app.models.mission import Mission, MissionSubmission, SubmissionStatus
 from app.models.user import User, UserRole
+from app.models.python import PythonChallenge, PythonUserProgress
 from app.schemas.branch import BranchMissionRead, BranchRead
 from app.schemas.mission import (
     MissionBase,
