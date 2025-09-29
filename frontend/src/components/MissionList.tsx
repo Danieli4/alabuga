@@ -14,6 +14,9 @@ export interface MissionSummary {
   locked_reasons: string[];
   is_completed: boolean;
   requires_documents: boolean;
+  has_coding_challenges: boolean;
+  coding_challenge_count: number;
+  completed_coding_challenges: number;
 }
 
 const Card = styled.div`
@@ -38,7 +41,9 @@ export function MissionList({ missions }: { missions: MissionSummary[] }) {
         const actionLabel = completed
           ? 'Миссия выполнена'
           : mission.is_available
-          ? 'Открыть брифинг'
+          ? mission.has_coding_challenges
+            ? 'Решать задачи'
+            : 'Открыть брифинг'
           : 'Заблокировано';
 
         return (
@@ -54,6 +59,11 @@ export function MissionList({ missions }: { missions: MissionSummary[] }) {
             )}
             <h3 style={{ marginBottom: '0.5rem' }}>{mission.title}</h3>
             <p style={{ color: 'var(--text-muted)', minHeight: '3rem' }}>{mission.description}</p>
+            {mission.has_coding_challenges && (
+              <p style={{ marginTop: '0.5rem', color: 'var(--accent-light)' }}>
+                💻 Прогресс: {mission.completed_coding_challenges}/{mission.coding_challenge_count} заданий
+              </p>
+            )}
             <p style={{ marginTop: '1rem' }}>{mission.xp_reward} XP · {mission.mana_reward} ⚡</p>
             {locked && mission.locked_reasons.length > 0 && (
               <p style={{ color: 'var(--error)', fontSize: '0.85rem' }}>{mission.locked_reasons[0]}</p>
