@@ -16,6 +16,7 @@ from app.core.security import get_password_hash
 from app.db.session import SessionLocal
 from app.models.artifact import Artifact, ArtifactRarity
 from app.models.branch import Branch, BranchMission
+from app.models.coding import CodingChallenge
 from app.models.mission import Mission, MissionCompetencyReward, MissionDifficulty
 from app.models.rank import Rank, RankCompetencyRequirement, RankMissionRequirement
 from app.models.onboarding import OnboardingSlide
@@ -161,7 +162,12 @@ def seed() -> None:
             description="Путь кандидата от знакомства до выхода на орбиту",
             category="quest",
         )
-        session.add(branch)
+        python_branch = Branch(
+            title="Основы Python",
+            description="Мини-курс из 10 задач для проверки синтаксиса и базовой логики.",
+            category="training",
+        )
+        session.add_all([branch, python_branch])
         session.flush()
 
         # Миссии
@@ -199,7 +205,21 @@ def seed() -> None:
             difficulty=MissionDifficulty.HARD,
             minimum_rank_id=ranks[1].id,
         )
-        session.add_all([mission_documents, mission_resume, mission_interview, mission_onboarding])
+        mission_python_basics = Mission(
+            title="Основные знания Python",
+            description="Решите 10 небольших задач и докажите, что уверенно чувствуете себя в языке программирования.",
+            xp_reward=250,
+            mana_reward=120,
+            difficulty=MissionDifficulty.MEDIUM,
+            minimum_rank_id=ranks[0].id,
+        )
+        session.add_all([
+            mission_documents,
+            mission_resume,
+            mission_interview,
+            mission_onboarding,
+            mission_python_basics,
+        ])
         session.flush()
 
         session.add_all(
@@ -224,6 +244,11 @@ def seed() -> None:
                     competency_id=competencies[3].id,
                     level_delta=1,
                 ),
+                MissionCompetencyReward(
+                    mission_id=mission_python_basics.id,
+                    competency_id=competencies[2].id,
+                    level_delta=1,
+                ),
             ]
         )
 
@@ -233,6 +258,94 @@ def seed() -> None:
                 BranchMission(branch_id=branch.id, mission_id=mission_resume.id, order=2),
                 BranchMission(branch_id=branch.id, mission_id=mission_interview.id, order=3),
                 BranchMission(branch_id=branch.id, mission_id=mission_onboarding.id, order=4),
+                BranchMission(branch_id=python_branch.id, mission_id=mission_python_basics.id, order=1),
+            ]
+        )
+
+        python_challenges_specs = [
+            {
+                "order": 1,
+                "title": "Приветствие пилота",
+                "prompt": "Выведите в консоль точную фразу «Привет, Python!». Без дополнительных символов или пробелов.",
+                "starter_code": "# Напишите одну строку с функцией print\n",
+                "expected_output": "Привет, Python!",
+            },
+            {
+                "order": 2,
+                "title": "Сложение топлива",
+                "prompt": "Создайте переменные a и b, найдите их сумму и выведите результат в формате «Сумма: 12».",
+                "starter_code": "a = 7\nb = 5\n# Напечатайте строку в формате: Сумма: 12\n",
+                "expected_output": "Сумма: 12",
+            },
+            {
+                "order": 3,
+                "title": "Площадь отсека",
+                "prompt": "Перемножьте длину и ширину отсека и выведите строку «Площадь: 24».",
+                "starter_code": "length = 8\nwidth = 3\n# Вычислите площадь и выведите результат\n",
+                "expected_output": "Площадь: 24",
+            },
+            {
+                "order": 4,
+                "title": "Обратный отсчёт",
+                "prompt": "С помощью цикла for выведите числа от 1 до 5, каждое на новой строке.",
+                "starter_code": "for number in range(1, 6):\n    # Напечатайте текущее число\n    pass\n",
+                "expected_output": "1\n2\n3\n4\n5",
+            },
+            {
+                "order": 5,
+                "title": "Квадраты сигналов",
+                "prompt": "Создайте список квадратов чисел от 1 до 5 и выведите строку «Список квадратов: [1, 4, 9, 16, 25]».",
+                "starter_code": "levels = [1, 2, 3, 4, 5]\n# Соберите список квадратов и напечатайте его\n",
+                "expected_output": "Список квадратов: [1, 4, 9, 16, 25]",
+            },
+            {
+                "order": 6,
+                "title": "Длина сообщения",
+                "prompt": "Определите длину строки message и выведите её как «Количество символов: 25».",
+                "starter_code": "message = \"Пангалактический экспресс\"\n# Посчитайте длину и выведите результат\n",
+                "expected_output": "Количество символов: 25",
+            },
+            {
+                "order": 7,
+                "title": "Запасы склада",
+                "prompt": "Пройдитесь по словарю storage и выведите информацию в формате «мануал: 3» и «датчик: 5».",
+                "starter_code": "storage = {\"мануал\": 3, \"датчик\": 5}\n# Выведите данные из словаря построчно\n",
+                "expected_output": "мануал: 3\nдатчик: 5",
+            },
+            {
+                "order": 8,
+                "title": "Проверка чётности",
+                "prompt": "Для чисел 2 и 7 напечатайте на отдельных строках True, если число чётное, иначе False.",
+                "starter_code": "numbers = [2, 7]\nfor number in numbers:\n    # Напечатайте True или False в зависимости от чётности\n    pass\n",
+                "expected_output": "True\nFalse",
+            },
+            {
+                "order": 9,
+                "title": "Сумма диапазона",
+                "prompt": "Посчитайте сумму чисел от 1 до 10 и выведите строку «Сумма от 1 до 10: 55».",
+                "starter_code": "total = 0\nfor number in range(1, 11):\n    # Добавляйте число к сумме\n    pass\n# После цикла выведите итог\n",
+                "expected_output": "Сумма от 1 до 10: 55",
+            },
+            {
+                "order": 10,
+                "title": "Факториал 5",
+                "prompt": "Вычислите факториал числа 5 и выведите строку «Факториал 5: 120».",
+                "starter_code": "result = 1\nfor number in range(1, 6):\n    # Умножайте result на текущее число\n    pass\n# Выведите итоговое значение\n",
+                "expected_output": "Факториал 5: 120",
+            },
+        ]
+
+        session.add_all(
+            [
+                CodingChallenge(
+                    mission_id=mission_python_basics.id,
+                    order=spec["order"],
+                    title=spec["title"],
+                    prompt=spec["prompt"],
+                    starter_code=spec["starter_code"],
+                    expected_output=spec["expected_output"],
+                )
+                for spec in python_challenges_specs
             ]
         )
 
