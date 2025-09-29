@@ -307,23 +307,9 @@ def list_missions(
             dto.is_completed = False
             dto.is_available = is_available
             dto.locked_reasons = reasons
-
-        total_python = (
-            db.query(PythonChallenge)
-            .filter(PythonChallenge.mission_id == mission.id)
-            .count()
-        )
-        if total_python:
-            progress = (
-                db.query(PythonUserProgress)
-                .filter(
-                    PythonUserProgress.user_id == current_user.id,
-                    PythonUserProgress.mission_id == mission.id,
-                )
-                .first()
-            )
-            dto.python_challenges_total = total_python
-            dto.python_completed_challenges = progress.current_order if progress else 0
+        dto.has_coding_challenges = bool(mission.coding_challenges)
+        dto.coding_challenge_count = len(mission.coding_challenges)
+        dto.completed_coding_challenges = coding_progress.get(mission.id, 0)
         response.append(dto)
 
     return response
@@ -395,28 +381,9 @@ def get_mission(
         updated_at=mission.updated_at,
     )
     data.requires_documents = mission.id in REQUIRED_DOCUMENT_MISSIONS
-
-    total_python = (
-        db.query(PythonChallenge)
-        .filter(PythonChallenge.mission_id == mission.id)
-        .count()
-    )
-    if total_python:
-        progress = (
-            db.query(PythonUserProgress)
-            .filter(
-                PythonUserProgress.user_id == current_user.id,
-                PythonUserProgress.mission_id == mission.id,
-            )
-            .first()
-        )
-        data.python_challenges_total = total_python
-        data.python_completed_challenges = progress.current_order if progress else 0
-        if progress and progress.current_order >= total_python:
-            data.is_completed = True
-            data.is_available = False
-            data.locked_reasons = ["Миссия уже завершена"]
-
+    data.has_coding_challenges = bool(mission.coding_challenges)
+    data.coding_challenge_count = len(mission.coding_challenges)
+    data.completed_coding_challenges = coding_progress.get(mission.id, 0)
     if mission.id in completed_missions:
         data.is_completed = True
         data.is_available = False
