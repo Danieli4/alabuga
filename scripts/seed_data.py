@@ -20,6 +20,7 @@ from app.models.mission import Mission, MissionCompetencyReward, MissionDifficul
 from app.models.rank import Rank, RankCompetencyRequirement, RankMissionRequirement
 from app.models.onboarding import OnboardingSlide
 from app.models.store import StoreItem
+from app.models.python import PythonChallenge
 from app.models.user import Competency, CompetencyCategory, User, UserCompetency, UserRole, UserArtifact
 from app.models.journal import JournalEntry, JournalEventType
 from app.main import run_migrations
@@ -161,7 +162,12 @@ def seed() -> None:
             description="Путь кандидата от знакомства до выхода на орбиту",
             category="quest",
         )
-        session.add(branch)
+        python_branch = Branch(
+            title="Галактокод",
+            description="Практика языка Python по мотивам путеводителя.",
+            category="training",
+        )
+        session.add_all([branch, python_branch])
         session.flush()
 
         # Миссии
@@ -199,7 +205,16 @@ def seed() -> None:
             difficulty=MissionDifficulty.HARD,
             minimum_rank_id=ranks[1].id,
         )
-        session.add_all([mission_documents, mission_resume, mission_interview, mission_onboarding])
+        mission_python = Mission(
+            title="Основы Python",
+            description="Решите последовательность задач, чтобы доказать владение базовыми конструкциями языка.",
+            xp_reward=250,
+            mana_reward=120,
+            difficulty=MissionDifficulty.MEDIUM,
+            minimum_rank_id=ranks[0].id,
+            artifact_id=artifact_by_name["Путеводитель по Галактике"].id,
+        )
+        session.add_all([mission_documents, mission_resume, mission_interview, mission_onboarding, mission_python])
         session.flush()
 
         session.add_all(
@@ -224,6 +239,11 @@ def seed() -> None:
                     competency_id=competencies[3].id,
                     level_delta=1,
                 ),
+                MissionCompetencyReward(
+                    mission_id=mission_python.id,
+                    competency_id=competencies[2].id,
+                    level_delta=1,
+                ),
             ]
         )
 
@@ -233,6 +253,7 @@ def seed() -> None:
                 BranchMission(branch_id=branch.id, mission_id=mission_resume.id, order=2),
                 BranchMission(branch_id=branch.id, mission_id=mission_interview.id, order=3),
                 BranchMission(branch_id=branch.id, mission_id=mission_onboarding.id, order=4),
+                BranchMission(branch_id=python_branch.id, mission_id=mission_python.id, order=1),
             ]
         )
 
@@ -242,6 +263,7 @@ def seed() -> None:
                 RankMissionRequirement(rank_id=ranks[1].id, mission_id=mission_resume.id),
                 RankMissionRequirement(rank_id=ranks[2].id, mission_id=mission_interview.id),
                 RankMissionRequirement(rank_id=ranks[2].id, mission_id=mission_onboarding.id),
+                RankMissionRequirement(rank_id=ranks[2].id, mission_id=mission_python.id),
             ]
         )
 

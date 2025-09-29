@@ -13,7 +13,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from app import models  # noqa: F401 - важно, чтобы Base знала обо всех моделях
-from app.api.routes import admin, auth, journal, missions, onboarding, store, users
+from app.api.routes import admin, auth, journal, missions, onboarding, store, users, python
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.session import SessionLocal, engine
@@ -136,6 +136,7 @@ app.include_router(missions.router)
 app.include_router(journal.router)
 app.include_router(onboarding.router)
 app.include_router(store.router)
+app.include_router(python.router)
 app.include_router(admin.router)
 
 

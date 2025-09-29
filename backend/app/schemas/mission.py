@@ -24,6 +24,9 @@ class MissionBase(BaseModel):
     locked_reasons: list[str] = Field(default_factory=list)
     is_completed: bool = False
     requires_documents: bool = False
+    python_challenges_total: Optional[int] = None
+    python_completed_challenges: Optional[int] = None
+    requires_documents: bool = False
     is_completed: bool = False
 
     class Config:
