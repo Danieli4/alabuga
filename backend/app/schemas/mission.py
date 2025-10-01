@@ -7,7 +7,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, computed_field
 
-from app.models.mission import MissionDifficulty, SubmissionStatus
+from app.models.mission import MissionDifficulty, MissionFormat, SubmissionStatus
 
 
 class MissionBase(BaseModel):
@@ -19,6 +19,17 @@ class MissionBase(BaseModel):
     xp_reward: int
     mana_reward: int
     difficulty: MissionDifficulty
+    format: MissionFormat
+    event_location: Optional[str] = None
+    event_address: Optional[str] = None
+    event_starts_at: Optional[datetime] = None
+    event_ends_at: Optional[datetime] = None
+    registration_deadline: Optional[datetime] = None
+    registration_url: Optional[str] = None
+    registration_notes: Optional[str] = None
+    capacity: Optional[int] = None
+    contact_person: Optional[str] = None
+    contact_phone: Optional[str] = None
     is_active: bool
     is_available: bool = True
     locked_reasons: list[str] = Field(default_factory=list)
@@ -27,6 +38,9 @@ class MissionBase(BaseModel):
     has_coding_challenges: bool = False
     coding_challenge_count: int = 0
     completed_coding_challenges: int = 0
+    submission_status: Optional[SubmissionStatus] = None
+    registered_participants: int = 0
+    registration_open: bool = True
 
     class Config:
         from_attributes = True
@@ -67,6 +81,17 @@ class MissionCreate(BaseModel):
     xp_reward: int
     mana_reward: int
     difficulty: MissionDifficulty = MissionDifficulty.MEDIUM
+    format: MissionFormat = MissionFormat.ONLINE
+    event_location: Optional[str] = None
+    event_address: Optional[str] = None
+    event_starts_at: Optional[datetime] = None
+    event_ends_at: Optional[datetime] = None
+    registration_deadline: Optional[datetime] = None
+    registration_url: Optional[str] = None
+    registration_notes: Optional[str] = None
+    capacity: Optional[int] = None
+    contact_person: Optional[str] = None
+    contact_phone: Optional[str] = None
     minimum_rank_id: Optional[int] = None
     artifact_id: Optional[int] = None
     prerequisite_ids: list[int] = []
@@ -83,6 +108,17 @@ class MissionUpdate(BaseModel):
     xp_reward: Optional[int] = None
     mana_reward: Optional[int] = None
     difficulty: Optional[MissionDifficulty] = None
+    format: Optional[MissionFormat] = None
+    event_location: Optional[str | None] = None
+    event_address: Optional[str | None] = None
+    event_starts_at: Optional[datetime | None] = None
+    event_ends_at: Optional[datetime | None] = None
+    registration_deadline: Optional[datetime | None] = None
+    registration_url: Optional[str | None] = None
+    registration_notes: Optional[str | None] = None
+    capacity: Optional[int | None] = None
+    contact_person: Optional[str | None] = None
+    contact_phone: Optional[str | None] = None
     minimum_rank_id: Optional[int | None] = None
     artifact_id: Optional[int | None] = None
     prerequisite_ids: Optional[list[int]] = None
