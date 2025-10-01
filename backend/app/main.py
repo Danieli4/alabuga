@@ -18,122 +18,22 @@ from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.session import SessionLocal, engine
 from app.models.rank import Rank
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, UserArtifact
+from app.models.artifact import Artifact, ArtifactRarity
 
-ALEMBIC_CONFIG = Path(__file__).resolve().parents[1] / "alembic.ini"
 
 app = FastAPI(title=settings.project_name)
 
 
-def run_migrations() -> None:
-    """Прогоняем миграции Alembic, поддерживая легаси-базы без alembic_version."""
-
-    config = Config(str(ALEMBIC_CONFIG))
-    config.set_main_option("sqlalchemy.url", str(settings.database_url))
-    # Alembic трактует относительный script_location относительно текущей рабочей
-    # директории процесса. В тестах и фронтенд-сервере мы запускаем backend из
-    # корня репозитория, поэтому явно подсказываем абсолютный путь до папки с
-    # миграциями, чтобы `alembic` не падал с "Path doesn't exist: alembic".
-    config.set_main_option(
-        "script_location", str(Path(__file__).resolve().parents[1] / "alembic")
-    )
-    script = ScriptDirectory.from_config(config)
-    head_revision = script.get_current_head()
-
-    inspector = inspect(engine)
-    tables = set(inspector.get_table_names())
-
-    current_revision: str | None = None
-    if "alembic_version" in tables:
-        with engine.begin() as conn:
-            row = conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1")).fetchone()
-            current_revision = row[0] if row else None
-
-    if "alembic_version" not in tables or current_revision is None:
-        if not tables:
-            command.upgrade(config, "head")
-            return
-
-        user_columns = set()
-        if "users" in tables:
-            user_columns = {column["name"] for column in inspector.get_columns("users")}
-
-        submission_columns = set()
-        if "mission_submissions" in tables:
-            submission_columns = {column["name"] for column in inspector.get_columns("mission_submissions")}
-
-        mission_columns = set()
-        if "missions" in tables:
-            mission_columns = {column["name"] for column in inspector.get_columns("missions")}
-
-        with engine.begin() as conn:
-            if "preferred_branch" not in user_columns:
-                conn.execute(text("ALTER TABLE users ADD COLUMN preferred_branch VARCHAR(160)"))
-            if "motivation" not in user_columns:
-                conn.execute(text("ALTER TABLE users ADD COLUMN motivation TEXT"))
-            if "profile_photo_path" not in user_columns:
-                conn.execute(text("ALTER TABLE users ADD COLUMN profile_photo_path VARCHAR(512)"))
-
-            if "passport_path" not in submission_columns:
-                conn.execute(text("ALTER TABLE mission_submissions ADD COLUMN passport_path VARCHAR(512)"))
-            if "photo_path" not in submission_columns:
-                conn.execute(text("ALTER TABLE mission_submissions ADD COLUMN photo_path VARCHAR(512)"))
-            if "resume_path" not in submission_columns:
-                conn.execute(text("ALTER TABLE mission_submissions ADD COLUMN resume_path VARCHAR(512)"))
-            if "resume_link" not in submission_columns:
-                conn.execute(text("ALTER TABLE mission_submissions ADD COLUMN resume_link VARCHAR(512)"))
-
-            if "missions" in tables:
-                # Легаси-базы без alembic_version пропускали миграцию с офлайн-полями,
-                # поэтому докидываем недостающие колонки вручную, чтобы API /admin не падало.
-                if "format" not in mission_columns:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE missions ADD COLUMN format VARCHAR(20) NOT NULL DEFAULT 'online'"
-                        )
-                    )
-                    conn.execute(text("UPDATE missions SET format = 'online' WHERE format IS NULL"))
-                if "event_location" not in mission_columns:
-                    conn.execute(text("ALTER TABLE missions ADD COLUMN event_location VARCHAR(160)"))
-                if "event_address" not in mission_columns:
-                    conn.execute(text("ALTER TABLE missions ADD COLUMN event_address VARCHAR(255)"))
-                if "event_starts_at" not in mission_columns:
-                    conn.execute(text("ALTER TABLE missions ADD COLUMN event_starts_at TIMESTAMP"))
-                if "event_ends_at" not in mission_columns:
-                    conn.execute(text("ALTER TABLE missions ADD COLUMN event_ends_at TIMESTAMP"))
-                if "registration_deadline" not in mission_columns:
-                    conn.execute(
-                        text("ALTER TABLE missions ADD COLUMN registration_deadline TIMESTAMP")
-                    )
-                if "registration_url" not in mission_columns:
-                    conn.execute(text("ALTER TABLE missions ADD COLUMN registration_url VARCHAR(512)"))
-                if "registration_notes" not in mission_columns:
-                    conn.execute(text("ALTER TABLE missions ADD COLUMN registration_notes TEXT"))
-                if "capacity" not in mission_columns:
-                    conn.execute(text("ALTER TABLE missions ADD COLUMN capacity INTEGER"))
-                if "contact_person" not in mission_columns:
-                    conn.execute(text("ALTER TABLE missions ADD COLUMN contact_person VARCHAR(120)"))
-                if "contact_phone" not in mission_columns:
-                    conn.execute(text("ALTER TABLE missions ADD COLUMN contact_phone VARCHAR(64)"))
-
-            conn.execute(text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL)"))
-            conn.execute(text("DELETE FROM alembic_version"))
-            conn.execute(text("INSERT INTO alembic_version (version_num) VALUES (:rev)"), {"rev": head_revision})
-
-    command.upgrade(config, "head")
-
-
-def create_demo_users() -> None:
-    """Создаём демо-пользователей, чтобы упростить проверку сценариев."""
+def create_demo_data() -> None:
+    """Создаём демо-пользователей и артефакты для проверки сценариев."""
 
     session: Session = SessionLocal()
     try:
         pilot_exists = session.query(User).filter(User.email == "candidate@alabuga.space").first()
         hr_exists = session.query(User).filter(User.email == "hr@alabuga.space").first()
 
-        if pilot_exists and hr_exists:
-            return
-
+        # Создаём пользователей если их нет
         base_rank = session.query(Rank).order_by(Rank.required_xp).first()
 
         if not pilot_exists:
@@ -148,6 +48,9 @@ def create_demo_users() -> None:
                 motivation="Хочу пройти все миссии и закрепиться в экипаже.",
             )
             session.add(pilot)
+            session.flush()  # Получаем ID пилота
+        else:
+            pilot = pilot_exists
 
         if not hr_exists:
             hr_rank = session.query(Rank).order_by(Rank.required_xp.desc()).first()
@@ -161,6 +64,72 @@ def create_demo_users() -> None:
                 preferred_branch="Куратор миссий",
             )
             session.add(hr)
+
+        # Создаём демо-артефакты если их нет
+        demo_artifacts = [
+            {
+                "name": "Путеводитель по Галактике",
+                "description": "Легендарный справочник, содержащий ответы на все вопросы вселенной",
+                "rarity": ArtifactRarity.LEGENDARY,
+                "image_url": "/artifacts/putevoditel-galaktiki.jpg",
+                "is_profile_modifier": True,
+                "background_effect": "linear-gradient(135deg, rgba(108,92,231,0.4), rgba(0,184,148,0.3))",
+                "profile_effect": "glow-legendary",
+                "modifier_description": "Добавляет легендарное свечение и космический градиент к профилю"
+            },
+            {
+                "name": "Полотенце 42",
+                "description": "Самый полезный предмет для путешественника по галактике",
+                "rarity": ArtifactRarity.EPIC,
+                "image_url": "/artifacts/polotentse-42.jpg",
+                "is_profile_modifier": True,
+                "background_effect": "linear-gradient(135deg, rgba(255,118,117,0.3), rgba(253,203,110,0.3))",
+                "profile_effect": "warm-glow",
+                "modifier_description": "Придаёт профилю тёплое свечение и уютную атмосферу"
+            },
+            {
+                "name": "Кнопка Невероятности",
+                "description": "Устройство, способное изменить реальность самым невероятным образом",
+                "rarity": ArtifactRarity.RARE,
+                "image_url": "/artifacts/knopka-neveroyatnosti.jpg",
+                "is_profile_modifier": True,
+                "background_effect": "linear-gradient(135deg, rgba(162,155,254,0.3), rgba(108,92,231,0.3))",
+                "profile_effect": "pulse-effect",
+                "modifier_description": "Добавляет пульсирующий эффект и фиолетовое свечение"
+            },
+            {
+                "name": "Сфера Марвина",
+                "description": "Депрессивный, но невероятно умный робот в форме сферы",
+                "rarity": ArtifactRarity.COMMON,
+                "image_url": "/artifacts/sfera-marvina.jpg",
+                "is_profile_modifier": False,
+                "background_effect": None,
+                "profile_effect": None,
+                "modifier_description": None
+            },
+            {
+                "name": "Пангалактический Грызлодёр",
+                "description": "Лучший напиток во вселенной, эффект как от удара золотым кирпичом",
+                "rarity": ArtifactRarity.EPIC,
+                "image_url": "/artifacts/pangalakticheskiy-gryzloder.jpg",
+                "is_profile_modifier": True,
+                "background_effect": "linear-gradient(135deg, rgba(255,234,167,0.3), rgba(255,118,117,0.3))",
+                "profile_effect": "shimmer",
+                "modifier_description": "Добавляет мерцающий золотистый эффект к профилю"
+            }
+        ]
+
+        for artifact_data in demo_artifacts:
+            existing = session.query(Artifact).filter(Artifact.name == artifact_data["name"]).first()
+            if not existing:
+                artifact = Artifact(**artifact_data)
+                session.add(artifact)
+                session.flush()
+                
+                # Даём артефакты Алексею Пилотову
+                if artifact_data["is_profile_modifier"]:
+                    user_artifact = UserArtifact(user_id=pilot.id, artifact_id=artifact.id)
+                    session.add(user_artifact)
 
         session.commit()
     finally:
@@ -190,9 +159,8 @@ app.include_router(admin.router)
 async def on_startup() -> None:
     """При запуске обновляем схему БД и подготавливаем демо-данные."""
 
-    run_migrations()
     if settings.environment != "production":
-        create_demo_users()
+        create_demo_data()
 
 
 @app.get("/", summary="Проверка работоспособности")
