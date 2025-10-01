@@ -7,10 +7,6 @@ import mimetypes
 import shutil
 from pathlib import Path
 
-from pathlib import Path
-import mimetypes
-import base64
-
 from fastapi import UploadFile
 
 from app.core.config import settings
@@ -25,29 +21,8 @@ def _ensure_within_base(path: Path) -> None:
         raise ValueError("Путь выходит за пределы каталога uploads")
 
 
-def save_submission_document(
-    *, upload: UploadFile, user_id: int, mission_id: int, kind: str
-) -> str:
-    """Сохраняем вложение пользователя и возвращаем относительный путь."""
-
-    extension = Path(upload.filename or "").suffix or ".bin"
-    sanitized_extension = extension[:16]
-
-    target_dir = settings.uploads_path / f"user_{user_id}" / f"mission_{mission_id}"
-    target_dir.mkdir(parents=True, exist_ok=True)
-
-    target_path = target_dir / f"{kind}{sanitized_extension}"
-    with target_path.open("wb") as buffer:
-        upload.file.seek(0)
-        shutil.copyfileobj(upload.file, buffer)
-    upload.file.seek(0)
-
-    relative_path = target_path.relative_to(settings.uploads_path).as_posix()
-    return relative_path
-
-
-def save_profile_photo(*, upload: UploadFile, user_id: int) -> str:
-    """Сохраняем фото профиля кандидата."""
+def _determine_image_extension(upload: UploadFile) -> str:
+    """Возвращаем допустимое расширение для изображения."""
 
     allowed_types = {
         "image/jpeg": ".jpg",
@@ -59,17 +34,49 @@ def save_profile_photo(*, upload: UploadFile, user_id: int) -> str:
     if content_type not in allowed_types:
         raise ValueError("Допустимы только изображения JPG, PNG или WEBP")
 
-    extension = allowed_types[content_type]
-    target_dir = settings.uploads_path / f"user_{user_id}" / "profile"
-    target_dir.mkdir(parents=True, exist_ok=True)
+    return allowed_types[content_type]
 
-    target_path = target_dir / f"photo{extension}"
+
+def _save_upload(upload: UploadFile, target_path: Path) -> str:
+    """Сохраняем файл на диске и возвращаем относительный путь."""
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
     with target_path.open("wb") as buffer:
         upload.file.seek(0)
         shutil.copyfileobj(upload.file, buffer)
     upload.file.seek(0)
 
     return target_path.relative_to(settings.uploads_path).as_posix()
+
+
+def save_submission_document(
+    *, upload: UploadFile, user_id: int, mission_id: int, kind: str
+) -> str:
+    """Сохраняем вложение пользователя и возвращаем относительный путь."""
+
+    extension = Path(upload.filename or "").suffix or ".bin"
+    sanitized_extension = extension[:16]
+
+    target_dir = settings.uploads_path / f"user_{user_id}" / f"mission_{mission_id}"
+    target_path = target_dir / f"{kind}{sanitized_extension}"
+    return _save_upload(upload, target_path)
+
+
+def save_profile_photo(*, upload: UploadFile, user_id: int) -> str:
+    """Сохраняем фото профиля кандидата."""
+
+    extension = _determine_image_extension(upload)
+    target_path = settings.uploads_path / f"user_{user_id}" / "profile" / f"photo{extension}"
+    return _save_upload(upload, target_path)
+
+
+def save_store_item_image(*, upload: UploadFile, item_id: int) -> str:
+    """Сохраняем изображение товара магазина."""
+
+    extension = _determine_image_extension(upload)
+    target_path = settings.uploads_path / "store" / f"item_{item_id}" / f"image{extension}"
+    return _save_upload(upload, target_path)
 
 
 def _delete_relative_file(relative_path: str | None) -> None:
@@ -101,6 +108,20 @@ def delete_profile_photo(relative_path: str | None) -> None:
     """Удаляем сохранённую фотографию профиля."""
 
     _delete_relative_file(relative_path)
+
+
+def delete_store_item_image(relative_path: str | None) -> None:
+    """Удаляем изображение товара магазина."""
+
+    _delete_relative_file(relative_path)
+
+
+def resolve_store_item_image_path(relative_path: str) -> Path:
+    """Возвращаем абсолютный путь к изображению товара."""
+
+    file_path = settings.uploads_path / relative_path
+    _ensure_within_base(file_path)
+    return file_path
 
 
 def build_photo_data_url(relative_path: str) -> str:
