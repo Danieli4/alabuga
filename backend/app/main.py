@@ -30,6 +30,13 @@ def run_migrations() -> None:
 
     config = Config(str(ALEMBIC_CONFIG))
     config.set_main_option("sqlalchemy.url", str(settings.database_url))
+    # Alembic трактует относительный script_location относительно текущей рабочей
+    # директории процесса. В тестах и фронтенд-сервере мы запускаем backend из
+    # корня репозитория, поэтому явно подсказываем абсолютный путь до папки с
+    # миграциями, чтобы `alembic` не падал с "Path doesn't exist: alembic".
+    config.set_main_option(
+        "script_location", str(Path(__file__).resolve().parents[1] / "alembic")
+    )
     script = ScriptDirectory.from_config(config)
     head_revision = script.get_current_head()
 
