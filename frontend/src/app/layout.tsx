@@ -47,23 +47,59 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <StyledComponentsRegistry>
           <header
             style={{
-              padding: '1.5rem',
+              padding: '1.2rem 1.5rem',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              background:
-                'linear-gradient(135deg, rgba(108,92,231,0.25), rgba(0,184,148,0.15))',
-              borderBottom: '1px solid rgba(162, 155, 254, 0.2)',
+              background: 'linear-gradient(135deg, rgba(0, 93, 172, 0.3), rgba(0, 174, 239, 0.2))',
+              borderBottom: '1px solid rgba(106, 207, 246, 0.2)',
               boxShadow: '0 10px 30px rgba(0,0,0,0.25)'
             }}
           >
-            <div>
-              <h1 style={{ margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Автостопом по Алабуге</h1>
-              <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-                Всегда держите полотенце под рукой и следуйте подсказкам бортового навигатора
-              </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              {/* Логотип - замени путь на актуальный */}
+              <img 
+                src="/images/logo.png" 
+                alt="Alabuga logo" 
+                style={{ 
+                  width: '160px', 
+                  height: '35px',
+                  objectFit: 'contain',
+                  borderRadius: '0px'
+                }} 
+              />
+              
+              {/* Вертикальный разделитель */}
+              <div 
+                style={{
+                  width: '1px',
+                  height: '35px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.3)'
+                }}
+              />
+              
+              {/* Заголовок */}
+              <h1 
+                style={{ 
+                  margin: 0, 
+                  letterSpacing: '0.05em',
+                  fontSize: '1.1rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  lineHeight: '1.2'
+                }}
+              >
+                Автостопом<br />по Алабуге
+              </h1>
             </div>
-            <nav style={{ display: 'flex', gap: '1rem', alignItems: 'center', fontWeight: 500 }}>
+            
+            <nav style={{ 
+              display: 'flex', 
+              gap: '1rem', 
+              alignItems: 'center', 
+              fontWeight: 500,
+              fontSize: '0.9rem'
+            }}>
               {links.map((link) => (
                 <a key={link.href} href={link.href}>
                   {link.label}
@@ -72,7 +108,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {viewingAsPilot && (
                 <span style={{
                   color: '#ffeaa7',
-                  fontSize: '0.85rem',
+                  fontSize: '0.8rem',
                   textTransform: 'uppercase',
                   letterSpacing: '0.08em'
                 }}>
@@ -81,10 +117,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               )}
               {session && (
                 <>
-                  <a href="/profile" style={{ marginLeft: '1rem' }}>
+                  <a href="/profile" style={{ 
+                    marginLeft: '1rem',
+                    color: 'var(--text-muted)',
+                    fontSize: '0.85rem'
+                  }}>
                     {session.fullName}
                   </a>
-                  <a href="/logout" style={{ fontWeight: 600 }}>
+                  <a href="/logout" style={{ fontWeight: 600, fontSize: '0.9rem' }}>
                     Выйти
                   </a>
                 </>
