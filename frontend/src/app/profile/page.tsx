@@ -97,6 +97,11 @@ export default async function ProfilePage() {
     .map(a => a.background_effect)
     .join(', ');
 
+  const profileEffects = appliedArtifacts
+    .filter(a => a.profile_effect)
+    .map(a => a.profile_effect)
+    .join(' ');
+
   // Преобразуем артефакты для ProgressOverview
   const artifactsForOverview = profile.artifacts.map(ua => ({
     id: ua.artifact.id,
@@ -104,13 +109,27 @@ export default async function ProfilePage() {
     rarity: ua.artifact.rarity
   }));
 
+  // Создаём стиль для всей секции профиля с модификаторами
+  const sectionStyle: React.CSSProperties = {
+    gridTemplateColumns: '2fr 1fr',
+    gap: '2rem',
+    position: 'relative',
+  };
+
+  if (backgroundEffects) {
+    sectionStyle.background = backgroundEffects;
+    sectionStyle.backgroundSize = 'cover';
+    sectionStyle.backgroundPosition = 'center';
+    sectionStyle.backgroundRepeat = 'no-repeat';
+    sectionStyle.backgroundAttachment = 'fixed';
+  }
+
+  // Собираем CSS классы для анимаций
+  const sectionClasses = ['grid', profileEffects].filter(Boolean).join(' ');
+
   return (
-    <section className="grid" style={{ gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
-      <div style={{ 
-        background: backgroundEffects || undefined,
-        borderRadius: '16px',
-        padding: backgroundEffects ? '1rem' : '0'
-      }}>
+    <section className={sectionClasses} style={sectionStyle}>
+      <div>
         <ProgressOverview
           fullName={profile.full_name}
           mana={profile.mana}

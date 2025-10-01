@@ -11,6 +11,10 @@ type Artifact = {
   description: string;
   rarity: string;
   image_url?: string | null;
+  is_profile_modifier?: boolean;
+  background_effect?: string | null;
+  profile_effect?: string | null;
+  modifier_description?: string | null;
 };
 
 const RARITY_OPTIONS = [
@@ -32,6 +36,10 @@ export function AdminArtifactManager({ token, artifacts }: Props) {
   const [description, setDescription] = useState('');
   const [rarity, setRarity] = useState('rare');
   const [imageUrl, setImageUrl] = useState('');
+  const [isProfileModifier, setIsProfileModifier] = useState(false);
+  const [backgroundEffect, setBackgroundEffect] = useState('');
+  const [profileEffect, setProfileEffect] = useState('');
+  const [modifierDescription, setModifierDescription] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -41,6 +49,10 @@ export function AdminArtifactManager({ token, artifacts }: Props) {
     setDescription('');
     setRarity('rare');
     setImageUrl('');
+    setIsProfileModifier(false);
+    setBackgroundEffect('');
+    setProfileEffect('');
+    setModifierDescription('');
   };
 
   const handleSelect = (value: string) => {
@@ -63,6 +75,10 @@ export function AdminArtifactManager({ token, artifacts }: Props) {
     setDescription(artifact.description);
     setRarity(artifact.rarity);
     setImageUrl(artifact.image_url ?? '');
+    setIsProfileModifier(artifact.is_profile_modifier ?? false);
+    setBackgroundEffect(artifact.background_effect ?? '');
+    setProfileEffect(artifact.profile_effect ?? '');
+    setModifierDescription(artifact.modifier_description ?? '');
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -75,7 +91,11 @@ export function AdminArtifactManager({ token, artifacts }: Props) {
       name,
       description,
       rarity,
-      image_url: imageUrl || null
+      image_url: imageUrl || null,
+      is_profile_modifier: isProfileModifier,
+      background_effect: backgroundEffect || null,
+      profile_effect: profileEffect || null,
+      modifier_description: modifierDescription || null
     };
 
     try {
@@ -172,6 +192,54 @@ export function AdminArtifactManager({ token, artifacts }: Props) {
           <input value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="https://..." />
         </label>
 
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+          <input 
+            type="checkbox" 
+            checked={isProfileModifier} 
+            onChange={(event) => setIsProfileModifier(event.target.checked)}
+            style={{ width: 'auto' }}
+          />
+          <span>Модификатор профиля</span>
+        </label>
+
+        {isProfileModifier && (
+          <>
+            <label>
+              Эффект фона (CSS)
+              <input 
+                value={backgroundEffect} 
+                onChange={(event) => setBackgroundEffect(event.target.value)} 
+                placeholder="url(/artifacts/image.jpg), linear-gradient(...)"
+              />
+              <small style={{ color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                Примеры: url(/artifacts/image.jpg), linear-gradient(135deg, #667eea 0%, #764ba2 100%)
+              </small>
+            </label>
+
+            <label>
+              Дополнительный эффект (CSS)
+              <input 
+                value={profileEffect} 
+                onChange={(event) => setProfileEffect(event.target.value)} 
+                placeholder="box-shadow: 0 0 20px rgba(108, 92, 231, 0.5)"
+              />
+              <small style={{ color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                Дополнительные CSS-эффекты для профиля (опционально)
+              </small>
+            </label>
+
+            <label>
+              Описание модификатора
+              <textarea 
+                value={modifierDescription} 
+                onChange={(event) => setModifierDescription(event.target.value)} 
+                rows={2}
+                placeholder="Добавляет космический фон на профиль"
+              />
+            </label>
+          </>
+        )}
+
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <button type="submit" className="primary" disabled={loading}>
             {selectedId === 'new' ? 'Создать артефакт' : 'Сохранить изменения'}
@@ -189,4 +257,3 @@ export function AdminArtifactManager({ token, artifacts }: Props) {
     </div>
   );
 }
-

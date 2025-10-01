@@ -59,12 +59,13 @@ export interface ProfileProps {
 }
 
 const Card = styled.div`
-  background: rgba(17, 22, 51, 0.85);
+  background: rgba(17, 22, 51, 0.75);
   border-radius: 16px;
   padding: 1.5rem;
   border: 1px solid rgba(108, 92, 231, 0.4);
   display: grid;
   gap: 1.5rem;
+  backdrop-filter: blur(10px);
 `;
 
 const PhotoSection = styled.div`
