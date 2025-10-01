@@ -6,7 +6,6 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from alembic.script import ScriptDirectory
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -33,8 +32,7 @@ def run_migrations() -> None:
     config.set_main_option("sqlalchemy.url", str(settings.database_url))
     migrations_path = Path(__file__).resolve().parents[1] / "alembic"
     config.set_main_option("script_location", str(migrations_path))
-    script = ScriptDirectory.from_config(config)
-    head_revision = script.get_current_head()
+    legacy_baseline = "20240927_0006"
 
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
@@ -63,6 +61,16 @@ def run_migrations() -> None:
                 conn.execute(text("ALTER TABLE users ADD COLUMN preferred_branch VARCHAR(160)"))
             if "motivation" not in user_columns:
                 conn.execute(text("ALTER TABLE users ADD COLUMN motivation TEXT"))
+            if "is_email_confirmed" not in user_columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE users ADD COLUMN is_email_confirmed BOOLEAN NOT NULL DEFAULT 1"
+                    )
+                )
+            if "email_confirmation_token" not in user_columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN email_confirmation_token VARCHAR(128)"))
+            if "email_confirmed_at" not in user_columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN email_confirmed_at DATETIME"))
 
             if "passport_path" not in submission_columns:
                 conn.execute(text("ALTER TABLE mission_submissions ADD COLUMN passport_path VARCHAR(512)"))
@@ -73,9 +81,7 @@ def run_migrations() -> None:
             if "resume_link" not in submission_columns:
                 conn.execute(text("ALTER TABLE mission_submissions ADD COLUMN resume_link VARCHAR(512)"))
 
-            conn.execute(text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL)"))
-            conn.execute(text("DELETE FROM alembic_version"))
-            conn.execute(text("INSERT INTO alembic_version (version_num) VALUES (:rev)"), {"rev": head_revision})
+        command.stamp(config, legacy_baseline)
 
     command.upgrade(config, "head")
 
