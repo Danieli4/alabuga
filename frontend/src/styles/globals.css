@@ -205,3 +205,109 @@ main {
   border-color: rgba(255, 118, 117, 0.3);
   color: var(--error);
 }
+
+/* Profile Modifier Effects - Static only, no motion */
+
+/* Legendary glow - static purple/teal glow */
+.glow-legendary {
+  box-shadow: 0 0 25px rgba(108, 92, 231, 0.5),
+              0 0 50px rgba(108, 92, 231, 0.25),
+              inset 0 0 25px rgba(108, 92, 231, 0.15);
+  border-radius: 16px;
+}
+
+/* Warm glow - static warm orange/red glow */
+.warm-glow {
+  box-shadow: 0 0 20px rgba(255, 118, 117, 0.4),
+              0 0 40px rgba(253, 203, 110, 0.25);
+  border-radius: 16px;
+}
+
+/* Pulse effect - static purple glow */
+.pulse-effect {
+  box-shadow: 0 0 18px rgba(162, 155, 254, 0.4),
+              0 0 35px rgba(108, 92, 231, 0.25);
+  border-radius: 16px;
+}
+
+/* Shimmer - static golden overlay */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.shimmer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    rgba(255, 234, 167, 0.2) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+/* Float effect - removed, no motion */
+.float-effect {
+  /* No animation - just exists as a class */
+}
+
+/* Rainbow border - static multicolor border */
+.rainbow-border {
+  position: relative;
+  border-radius: 16px;
+}
+
+.rainbow-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 16px;
+  padding: 2px;
+  background: linear-gradient(135deg, 
+    rgba(255, 0, 0, 0.4), 
+    rgba(255, 127, 0, 0.4), 
+    rgba(255, 255, 0, 0.4), 
+    rgba(0, 255, 0, 0.4), 
+    rgba(0, 0, 255, 0.4), 
+    rgba(148, 0, 211, 0.4));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* Sparkle effect - static sparkle icon */
+.sparkle-effect {
+  position: relative;
+  border-radius: 16px;
+}
+
+.sparkle-effect::after {
+  content: '✨';
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 1.2rem;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+/* Cosmic drift - static gradient, smooth transition on hover */
+.cosmic-drift {
+  background-size: 200% 200%;
+  background-position: 0% 50%;
+  transition: background-position 1s ease;
+  border-radius: 16px;
+}
+
+.cosmic-drift:hover {
+  background-position: 100% 50%;
+}
