@@ -1,6 +1,9 @@
 'use client';
 
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
+
+import { apiFetch } from '../lib/api';
 
 // Компетенции и артефакты из профиля пользователя.
 type Competency = {
@@ -18,11 +21,18 @@ type Artifact = {
 };
 
 // Мы получаем агрегированный прогресс от backend и пробрасываем его в компонент целиком.
+interface ProfilePhotoResponse {
+  photo: string | null;
+  detail?: string | null;
+}
+
 export interface ProfileProps {
   fullName: string;
   mana: number;
   competencies: Competency[];
   artifacts: Artifact[];
+  token: string;
+  profilePhotoUploaded: boolean;
   progress: {
     current_rank: { title: string } | null;
     next_rank: { title: string } | null;
@@ -55,6 +65,44 @@ const Card = styled.div`
   border: 1px solid rgba(108, 92, 231, 0.4);
   display: grid;
   gap: 1.5rem;
+`;
+
+const PhotoSection = styled.div`
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+`;
+
+const PhotoPreview = styled.div`
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(108, 92, 231, 0.45);
+  background: rgba(162, 155, 254, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+`;
+
+const PhotoImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`;
+
+const PhotoActions = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+`;
+
+const StatusMessage = styled.p<{ $kind: 'success' | 'error' }>`
+  margin: 0;
+  font-size: 0.85rem;
+  color: ${({ $kind }) => ($kind === 'success' ? 'var(--accent-light)' : 'var(--error)')};
 `;
 
 const ProgressBar = styled.div<{ value: number }>`
@@ -109,12 +157,163 @@ const InlineBadge = styled.span<{ $kind?: 'success' | 'warning' }>`
   color: ${({ $kind }) => ($kind === 'success' ? '#55efc4' : '#ff7675')};
 `;
 
-export function ProgressOverview({ fullName, mana, competencies, artifacts, progress }: ProfileProps) {
+export function ProgressOverview({
+  fullName,
+  mana,
+  competencies,
+  artifacts,
+  token,
+  profilePhotoUploaded,
+  progress
+}: ProfileProps) {
   const xpPercent = Math.round(progress.xp.progress_percent * 100);
   const hasNextRank = Boolean(progress.next_rank);
+  const [photoData, setPhotoData] = useState<string | null>(null);
+  const [hasPhoto, setHasPhoto] = useState(profilePhotoUploaded);
+  const [status, setStatus] = useState<string | null>(null);
+  const [statusKind, setStatusKind] = useState<'success' | 'error'>('success');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setHasPhoto(profilePhotoUploaded);
+  }, [profilePhotoUploaded]);
+
+  useEffect(() => {
+    if (!hasPhoto) {
+      setPhotoData(null);
+      return;
+    }
+
+    let cancelled = false;
+    async function loadPhoto() {
+      try {
+        const response = await apiFetch<ProfilePhotoResponse>('/api/me/photo', { authToken: token });
+        if (!cancelled) {
+          setPhotoData(response.photo ?? null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Не удалось загрузить фото профиля', error);
+          setStatusKind('error');
+          setStatus('Не получилось загрузить фото. Попробуйте обновить страницу.');
+        }
+      }
+    }
+
+    void loadPhoto();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPhoto, token]);
+
+  async function handleUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setStatus('Разрешены только изображения в форматах JPG, PNG или WEBP.');
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setStatus('Размер файла не должен превышать 5 МБ.');
+      event.target.value = '';
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('photo', file);
+
+    try {
+      setUploading(true);
+      setStatus(null);
+      setStatusKind('success');
+      const response = await apiFetch<ProfilePhotoResponse>('/api/me/photo', {
+        method: 'POST',
+        body: formData,
+        authToken: token
+      });
+      setPhotoData(response.photo ?? null);
+      setHasPhoto(Boolean(response.photo));
+      setStatusKind('success');
+      setStatus(response.detail ?? 'Фотография обновлена.');
+    } catch (error) {
+      if (error instanceof Error) {
+        setStatusKind('error');
+        setStatus(error.message);
+      } else {
+        setStatusKind('error');
+        setStatus('Не удалось сохранить фото. Попробуйте позже.');
+      }
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  }
+
+  async function handleRemove() {
+    try {
+      setUploading(true);
+      setStatus(null);
+      setStatusKind('success');
+      const response = await apiFetch<ProfilePhotoResponse>('/api/me/photo', {
+        method: 'DELETE',
+        authToken: token
+      });
+      setPhotoData(null);
+      setHasPhoto(false);
+      setStatusKind('success');
+      setStatus(response.detail ?? 'Фотография удалена.');
+    } catch (error) {
+      if (error instanceof Error) {
+        setStatusKind('error');
+        setStatus(error.message);
+      } else {
+        setStatusKind('error');
+        setStatus('Не удалось удалить фото. Попробуйте ещё раз.');
+      }
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <Card>
+      <PhotoSection>
+        <PhotoPreview>
+          {photoData ? <PhotoImage src={photoData} alt="Фото профиля" /> : <span role="img" aria-label="Профиль">🧑‍🚀</span>}
+        </PhotoPreview>
+        <PhotoActions>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <label className="secondary" style={{ cursor: 'pointer' }}>
+              Загрузить фото
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                style={{ display: 'none' }}
+                onChange={handleUpload}
+                disabled={uploading}
+              />
+            </label>
+            <button className="ghost" type="button" onClick={handleRemove} disabled={!hasPhoto || uploading}>
+              Удалить
+            </button>
+          </div>
+          <small style={{ color: 'var(--text-muted)' }}>
+            Добавьте свою фотографию, чтобы HR быстрее узнавал вас при общении на офлайн-миссиях.
+          </small>
+          {status && <StatusMessage $kind={statusKind}>{status}</StatusMessage>}
+        </PhotoActions>
+      </PhotoSection>
+
       <header>
         <h2 style={{ margin: 0 }}>{fullName}</h2>
         <p style={{ color: 'var(--text-muted)', marginTop: '0.25rem' }}>
