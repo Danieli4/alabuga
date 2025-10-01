@@ -9,6 +9,7 @@ from app.models.journal import JournalEventType
 from app.models.store import Order, OrderStatus, StoreItem
 from app.models.user import User
 from app.services.journal import log_event
+from app.schemas.store import StoreItemRead
 
 
 def create_order(db: Session, user: User, item: StoreItem, comment: str | None) -> Order:
@@ -38,6 +39,33 @@ def create_order(db: Session, user: User, item: StoreItem, comment: str | None) 
     )
 
     return order
+
+
+def build_public_store_image_url(image_path: str | None) -> str | None:
+    """Формируем публичный URL изображения магазина."""
+
+    if not image_path:
+        return None
+
+    normalized = image_path.strip()
+    if not normalized:
+        return None
+
+    if normalized.startswith(("http://", "https://")):
+        return normalized
+
+    if normalized.startswith("/"):
+        return normalized
+
+    return f"/uploads/{normalized.lstrip('/')}"
+
+
+def store_item_to_read(item: StoreItem) -> StoreItemRead:
+    """Собираем DTO товара с корректной ссылкой на изображение."""
+
+    return StoreItemRead.model_validate(item).model_copy(
+        update={"image_url": build_public_store_image_url(item.image_url)}
+    )
 
 
 def update_order_status(db: Session, order: Order, status_: OrderStatus) -> Order:

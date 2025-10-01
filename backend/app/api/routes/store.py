@@ -10,7 +10,7 @@ from app.db.session import get_db
 from app.models.store import Order, OrderStatus, StoreItem
 from app.models.user import User
 from app.schemas.store import OrderCreate, OrderRead, StoreItemRead
-from app.services.store import create_order, update_order_status
+from app.services.store import create_order, store_item_to_read, update_order_status
 
 router = APIRouter(prefix="/api/store", tags=["store"])
 
@@ -20,7 +20,7 @@ def list_items(*, db: Session = Depends(get_db)) -> list[StoreItemRead]:
     """Товары магазина."""
 
     items = db.query(StoreItem).order_by(StoreItem.name).all()
-    return [StoreItemRead.model_validate(item) for item in items]
+    return [store_item_to_read(item) for item in items]
 
 
 @router.post("/orders", response_model=OrderRead, summary="Создать заказ")

@@ -16,7 +16,6 @@ async function registerAction(formData: FormData) {
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '').trim();
   // Необязательные поля переводим в undefined, чтобы backend не записывал пустые строки.
-  const preferredBranch = String(formData.get('preferredBranch') ?? '').trim() || undefined;
   const motivation = String(formData.get('motivation') ?? '').trim() || undefined;
 
   if (!fullName || !email || !password) {
@@ -25,7 +24,7 @@ async function registerAction(formData: FormData) {
 
   try {
     // 2. Собираем payload в формате, который ожидает FastAPI.
-    const payload = { full_name: fullName, email, password, preferred_branch: preferredBranch, motivation };
+    const payload = { full_name: fullName, email, password, motivation };
     const response = await apiFetch<any>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(payload)
@@ -79,17 +78,6 @@ export default async function RegisterPage({ searchParams }: { searchParams: { e
         <label className={styles.field}>
           Пароль
           <input className={styles.input} type="password" name="password" required placeholder="Придумайте пароль" />
-        </label>
-        <label className={styles.field}>
-          Интересующая ветка (необязательно)
-          <select className={styles.input} name="preferredBranch" defaultValue="">
-            <option value="">Выберите ветку</option>
-            <option value="Получение оффера">Получение оффера</option>
-            <option value="Рекрутинг">Рекрутинг</option>
-            <option value="Квесты">Квесты</option>
-            <option value="Симулятор">Симулятор</option>
-            <option value="Лекторий">Лекторий</option>
-          </select>
         </label>
         <label className={styles.field}>
           Что хотите добиться?

@@ -10,6 +10,7 @@ type StoreItem = {
   description: string;
   cost_mana: number;
   stock: number;
+  image_url: string | null;
 };
 
 const Card = styled.div`
@@ -24,6 +25,20 @@ type Feedback = { kind: 'success' | 'error'; text: string } | null;
 export function StoreItems({ items, token }: { items: StoreItem[]; token?: string }) {
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [message, setMessage] = useState<Feedback>(null);
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+  const resolveImageSrc = (source: string | null) => {
+    if (!source) {
+      return null;
+    }
+    if (source.startsWith('http://') || source.startsWith('https://')) {
+      return source;
+    }
+    if (source.startsWith('/uploads/')) {
+      return `${apiBaseUrl}${source}`;
+    }
+    return source;
+  };
 
   const resolveErrorMessage = (error: unknown) => {
     if (error instanceof Error) {
@@ -66,8 +81,23 @@ export function StoreItems({ items, token }: { items: StoreItem[]; token?: strin
         </p>
       )}
       <div className="grid">
-        {items.map((item) => (
-          <Card key={item.id}>
+        {items.map((item) => {
+          const imageSrc = resolveImageSrc(item.image_url);
+          return (
+            <Card key={item.id}>
+              {imageSrc && (
+                <img
+                  src={imageSrc}
+                  alt={item.name}
+                  style={{
+                    width: '100%',
+                    maxHeight: '180px',
+                    borderRadius: '10px',
+                    marginBottom: '1rem',
+                    objectFit: 'cover',
+                  }}
+                />
+              )}
             <h3 style={{ marginBottom: '0.5rem' }}>{item.name}</h3>
             <p style={{ color: 'var(--text-muted)' }}>{item.description}</p>
             <p style={{ marginTop: '1rem' }}>{item.cost_mana} ⚡ · остаток {item.stock}</p>
@@ -79,8 +109,9 @@ export function StoreItems({ items, token }: { items: StoreItem[]; token?: strin
             >
               {loadingId === item.id ? 'Оформляем...' : 'Получить приз'}
             </button>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

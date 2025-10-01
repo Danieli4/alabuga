@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import os
 import sys
@@ -17,7 +18,7 @@ from app.db.session import SessionLocal
 from app.models.artifact import Artifact, ArtifactRarity
 from app.models.branch import Branch, BranchMission
 from app.models.coding import CodingChallenge
-from app.models.mission import Mission, MissionCompetencyReward, MissionDifficulty
+from app.models.mission import Mission, MissionCompetencyReward, MissionDifficulty, MissionFormat
 from app.models.rank import Rank, RankCompetencyRequirement, RankMissionRequirement
 from app.models.onboarding import OnboardingSlide
 from app.models.store import StoreItem
@@ -168,7 +169,12 @@ def seed() -> None:
             description="Мини-курс из 10 задач для проверки синтаксиса и базовой логики.",
             category="training",
         )
-        session.add_all([branch, python_branch])
+        offline_branch = Branch(
+            title="Офлайн мероприятия",
+            description="Живые встречи в кампусе и городе",
+            category="event",
+        )
+        session.add_all([branch, python_branch, offline_branch])
         session.flush()
 
         # Миссии
@@ -214,12 +220,67 @@ def seed() -> None:
             difficulty=MissionDifficulty.MEDIUM,
             minimum_rank_id=ranks[0].id,
         )
+        now = datetime.now(timezone.utc)
+        mission_campus_tour = Mission(
+            title="Экскурсия по кампусу",
+            description="Познакомьтесь с производственными линиями и учебными площадками вместе с наставником.",
+            xp_reward=140,
+            mana_reward=70,
+            difficulty=MissionDifficulty.EASY,
+            format=MissionFormat.OFFLINE,
+            event_location="Кампус Алабуга Политех",
+            event_address="Республика Татарстан, Елабуга, территория ОЭЗ 'Алабуга'",
+            event_starts_at=now + timedelta(days=3, hours=10),
+            event_ends_at=now + timedelta(days=3, hours=13),
+            registration_deadline=now + timedelta(days=2, hours=18),
+            capacity=25,
+            contact_person="Наталья из HR",
+            contact_phone="+7 (900) 123-45-67",
+            registration_notes="Возьмите паспорт для прохода на территорию.",
+        )
+        mission_sport_day = Mission(
+            title="Спортивный день в технопарке",
+            description="Присоединяйтесь к командным активностям и познакомьтесь с будущими коллегами в неформальной обстановке.",
+            xp_reward=160,
+            mana_reward=90,
+            difficulty=MissionDifficulty.MEDIUM,
+            format=MissionFormat.OFFLINE,
+            event_location="Спортивный центр Алабуги",
+            event_address="Елабуга, проспект Строителей, 5",
+            event_starts_at=now + timedelta(days=7, hours=17),
+            event_ends_at=now + timedelta(days=7, hours=20),
+            registration_deadline=now + timedelta(days=6, hours=12),
+            capacity=40,
+            contact_person="Игорь, координатор мероприятий",
+            contact_phone="+7 (900) 765-43-21",
+            registration_notes="Форма одежды – спортивная. Будет организован трансфер от кампуса.",
+        )
+        mission_open_lecture = Mission(
+            title="Лекция капитана по культуре Алабуги",
+            description="Живой рассказ о миссии компании, ценностях и истории от капитана программы.",
+            xp_reward=180,
+            mana_reward=110,
+            difficulty=MissionDifficulty.MEDIUM,
+            format=MissionFormat.OFFLINE,
+            event_location="Конференц-зал HQ",
+            event_address="Елабуга, ул. Промышленная, 2",
+            event_starts_at=now + timedelta(days=10, hours=15),
+            event_ends_at=now + timedelta(days=10, hours=17),
+            registration_deadline=now + timedelta(days=8, hours=18),
+            capacity=60,
+            contact_person="Алина, программа адаптации",
+            contact_phone="+7 (900) 555-19-82",
+            registration_notes="Перед лекцией будет кофе-брейк, приходите на 15 минут раньше.",
+        )
         session.add_all([
             mission_documents,
             mission_resume,
             mission_interview,
             mission_onboarding,
             mission_python_basics,
+            mission_campus_tour,
+            mission_sport_day,
+            mission_open_lecture,
         ])
         session.flush()
 
@@ -250,6 +311,21 @@ def seed() -> None:
                     competency_id=competencies[2].id,
                     level_delta=1,
                 ),
+                MissionCompetencyReward(
+                    mission_id=mission_campus_tour.id,
+                    competency_id=competencies[0].id,
+                    level_delta=1,
+                ),
+                MissionCompetencyReward(
+                    mission_id=mission_sport_day.id,
+                    competency_id=competencies[3].id,
+                    level_delta=1,
+                ),
+                MissionCompetencyReward(
+                    mission_id=mission_open_lecture.id,
+                    competency_id=competencies[5].id,
+                    level_delta=1,
+                ),
             ]
         )
 
@@ -260,6 +336,9 @@ def seed() -> None:
                 BranchMission(branch_id=branch.id, mission_id=mission_interview.id, order=3),
                 BranchMission(branch_id=branch.id, mission_id=mission_onboarding.id, order=4),
                 BranchMission(branch_id=python_branch.id, mission_id=mission_python_basics.id, order=1),
+                BranchMission(branch_id=offline_branch.id, mission_id=mission_campus_tour.id, order=1),
+                BranchMission(branch_id=offline_branch.id, mission_id=mission_sport_day.id, order=2),
+                BranchMission(branch_id=offline_branch.id, mission_id=mission_open_lecture.id, order=3),
             ]
         )
 
@@ -383,12 +462,14 @@ def seed() -> None:
                     description="Личный тур по цехам Алабуги",
                     cost_mana=200,
                     stock=5,
+                    image_url="/store/excursion-alabuga.svg",
                 ),
                 StoreItem(
                     name="Мерч экипажа",
                     description="Футболка с эмблемой миссии",
                     cost_mana=150,
                     stock=10,
+                    image_url="/store/alabuga-crew-shirt.svg",
                 ),
             ]
         )
