@@ -10,6 +10,7 @@ type StoreItem = {
   description: string;
   cost_mana: number;
   stock: number;
+  image_url: string | null;
 };
 
 const Card = styled.div`
@@ -68,6 +69,19 @@ export function StoreItems({ items, token }: { items: StoreItem[]; token?: strin
       <div className="grid">
         {items.map((item) => (
           <Card key={item.id}>
+            {item.image_url && (
+              <img
+                src={item.image_url}
+                alt={item.name}
+                style={{
+                  width: '100%',
+                  maxHeight: '180px',
+                  borderRadius: '10px',
+                  marginBottom: '1rem',
+                  objectFit: 'cover',
+                }}
+              />
+            )}
             <h3 style={{ marginBottom: '0.5rem' }}>{item.name}</h3>
             <p style={{ color: 'var(--text-muted)' }}>{item.description}</p>
             <p style={{ marginTop: '1rem' }}>{item.cost_mana} ⚡ · остаток {item.stock}</p>

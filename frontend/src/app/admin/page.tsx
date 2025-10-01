@@ -3,6 +3,7 @@ import { AdminMissionManager } from '../../components/admin/AdminMissionManager'
 import { AdminRankManager } from '../../components/admin/AdminRankManager';
 import { AdminArtifactManager } from '../../components/admin/AdminArtifactManager';
 import { AdminSubmissionCard } from '../../components/admin/AdminSubmissionCard';
+import { AdminStoreManager } from '../../components/admin/AdminStoreManager';
 import { apiFetch } from '../../lib/api';
 import { requireRole } from '../../lib/auth/session';
 
@@ -61,6 +62,15 @@ interface ArtifactSummary {
   image_url?: string | null;
 }
 
+interface StoreItemSummary {
+  id: number;
+  name: string;
+  description: string;
+  cost_mana: number;
+  stock: number;
+  image_url: string | null;
+}
+
 interface SubmissionStats {
   pending: number;
   approved: number;
@@ -85,14 +95,24 @@ export default async function AdminPage() {
   // Админ-панель доступна только HR-сотрудникам; проверяем роль до загрузки данных.
   const session = await requireRole('hr');
 
-  const [submissions, missions, branches, ranks, competencies, artifacts, stats] = await Promise.all([
+  const [
+    submissions,
+    missions,
+    branches,
+    ranks,
+    competencies,
+    artifacts,
+    stats,
+    storeItems,
+  ] = await Promise.all([
     apiFetch<Submission[]>('/api/admin/submissions', { authToken: session.token }),
     apiFetch<MissionSummary[]>('/api/admin/missions', { authToken: session.token }),
     apiFetch<BranchSummary[]>('/api/admin/branches', { authToken: session.token }),
     apiFetch<RankSummary[]>('/api/admin/ranks', { authToken: session.token }),
     apiFetch<CompetencySummary[]>('/api/admin/competencies', { authToken: session.token }),
     apiFetch<ArtifactSummary[]>('/api/admin/artifacts', { authToken: session.token }),
-    apiFetch<AdminStats>('/api/admin/stats', { authToken: session.token })
+    apiFetch<AdminStats>('/api/admin/stats', { authToken: session.token }),
+    apiFetch<StoreItemSummary[]>('/api/admin/store/items', { authToken: session.token }),
   ]);
 
   return (
@@ -167,6 +187,7 @@ export default async function AdminPage() {
         />
         <AdminRankManager token={session.token} ranks={ranks} missions={missions} competencies={competencies} />
         <AdminArtifactManager token={session.token} artifacts={artifacts} />
+        <AdminStoreManager token={session.token} items={storeItems} />
       </div>
     </section>
   );

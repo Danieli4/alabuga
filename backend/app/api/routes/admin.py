@@ -19,6 +19,7 @@ from app.models.mission import (
     SubmissionStatus,
 )
 from app.models.rank import Rank, RankCompetencyRequirement, RankMissionRequirement
+from app.models.store import StoreItem
 from app.models.user import Competency, User, UserRole
 from app.schemas.artifact import ArtifactCreate, ArtifactRead, ArtifactUpdate
 from app.schemas.branch import BranchCreate, BranchMissionRead, BranchRead, BranchUpdate
@@ -38,6 +39,8 @@ from app.schemas.rank import (
     RankUpdate,
 )
 from app.schemas.user import CompetencyBase
+from app.schemas.store import StoreItemCreate, StoreItemRead, StoreItemUpdate
+
 from app.services.mission import approve_submission, registration_is_open, reject_submission
 from app.schemas.admin_stats import AdminDashboardStats, BranchCompletionStat, SubmissionStats
 
@@ -138,6 +141,15 @@ def _branch_to_read(branch: Branch) -> BranchRead:
     )
 
 
+def _sanitize_optional(value: str | None) -> str | None:
+    """Обрезаем пробелы и заменяем пустые строки на None."""
+
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
 def _load_rank(db: Session, rank_id: int) -> Rank:
     """Загружаем ранг с зависимостями."""
 
@@ -174,6 +186,99 @@ def admin_missions(*, db: Session = Depends(get_db), current_user=Depends(requir
 
     missions = db.query(Mission).order_by(Mission.title).all()
     return [MissionBase.model_validate(mission) for mission in missions]
+
+
+@router.get("/store/items", response_model=list[StoreItemRead], summary="Товары магазина (HR)")
+def admin_store_items(
+    *, db: Session = Depends(get_db), current_user=Depends(require_hr)
+) -> list[StoreItemRead]:
+    """Возвращаем товары магазина для панели HR."""
+
+    items = db.query(StoreItem).order_by(StoreItem.name).all()
+    return [StoreItemRead.model_validate(item) for item in items]
+
+
+@router.post(
+    "/store/items",
+    response_model=StoreItemRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Создать товар",
+)
+def admin_store_create(
+    item_in: StoreItemCreate,
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> StoreItemRead:
+    """Создаём новый товар в магазине."""
+
+    name = item_in.name.strip()
+    description = item_in.description.strip()
+    if not name or not description:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Название и описание не могут быть пустыми",
+        )
+
+    item = StoreItem(
+        name=name,
+        description=description,
+        cost_mana=item_in.cost_mana,
+        stock=item_in.stock,
+        image_url=_sanitize_optional(item_in.image_url),
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return StoreItemRead.model_validate(item)
+
+
+@router.patch(
+    "/store/items/{item_id}",
+    response_model=StoreItemRead,
+    summary="Обновить товар",
+)
+def admin_store_update(
+    item_id: int,
+    item_in: StoreItemUpdate,
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> StoreItemRead:
+    """Редактируем существующий товар."""
+
+    item = db.query(StoreItem).filter(StoreItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Товар не найден")
+
+    update_data = item_in.model_dump(exclude_unset=True)
+    if "name" in update_data and update_data["name"] is not None:
+        new_name = update_data["name"].strip()
+        if not new_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Название не может быть пустым",
+            )
+        item.name = new_name
+    if "description" in update_data and update_data["description"] is not None:
+        new_description = update_data["description"].strip()
+        if not new_description:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Описание не может быть пустым",
+            )
+        item.description = new_description
+    if "cost_mana" in update_data and update_data["cost_mana"] is not None:
+        item.cost_mana = update_data["cost_mana"]
+    if "stock" in update_data and update_data["stock"] is not None:
+        item.stock = update_data["stock"]
+    if "image_url" in update_data:
+        item.image_url = _sanitize_optional(update_data["image_url"])
+
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return StoreItemRead.model_validate(item)
 
 
 @router.get("/missions/{mission_id}", response_model=MissionDetail, summary="Детали миссии")
