@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import StyledComponentsRegistry from '../lib/styled-registry';
 import '../styles/globals.css';
 import { getSession } from '../lib/auth/session';
@@ -59,7 +60,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               {/* Логотип - замени путь на актуальный */}
               <img 
-                src="/images/logo.png" 
+                src="/artifacts/logo-white-ru.png" 
                 alt="Alabuga logo" 
                 style={{ 
                   width: '160px', 
@@ -101,9 +102,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               fontSize: '0.9rem'
             }}>
               {links.map((link) => (
-                <a key={link.href} href={link.href}>
+                <Link key={link.href} href={link.href}>
                   {link.label}
-                </a>
+                </Link>
               ))}
               {viewingAsPilot && (
                 <span style={{
@@ -117,16 +118,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               )}
               {session && (
                 <>
-                  <a href="/profile" style={{ 
+                  <Link href="/profile" style={{ 
                     marginLeft: '1rem',
                     color: 'var(--text-muted)',
                     fontSize: '0.85rem'
                   }}>
                     {session.fullName}
-                  </a>
-                  <a href="/logout" style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                  </Link>
+                  <Link href="/logout" style={{ fontWeight: 600, fontSize: '0.9rem' }}>
                     Выйти
-                  </a>
+                  </Link>
                 </>
               )}
             </nav>
