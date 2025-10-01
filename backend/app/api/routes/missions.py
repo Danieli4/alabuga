@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
@@ -27,7 +30,7 @@ from app.schemas.coding import (
     CodingRunResponse,
 )
 from app.services.coding import count_completed_challenges, evaluate_challenge
-from app.services.mission import UNSET, submit_mission
+from app.services.mission import UNSET, registration_is_open, submit_mission
 from app.services.storage import delete_submission_document, save_submission_document
 from app.core.config import settings
 
@@ -282,11 +285,28 @@ def list_missions(
 
     mission_titles = {mission.id: mission.title for mission in missions}
     completed_missions = _load_user_progress(current_user)
+    submission_status_map = {
+        submission.mission_id: submission.status for submission in current_user.submissions
+    }
     coding_progress = count_completed_challenges(
         db,
         mission_ids=[mission.id for mission in missions if mission.coding_challenges],
         user=current_user,
     )
+
+    mission_ids = [mission.id for mission in missions]
+    registration_counts = {
+        mission_id: count
+        for mission_id, count in (
+            db.query(MissionSubmission.mission_id, func.count(MissionSubmission.id))
+            .filter(
+                MissionSubmission.mission_id.in_(mission_ids),
+                MissionSubmission.status != SubmissionStatus.REJECTED,
+            )
+            .group_by(MissionSubmission.mission_id)
+            .all()
+        )
+    }
 
     response: list[MissionBase] = []
     for mission in missions:
@@ -310,6 +330,14 @@ def list_missions(
         dto.has_coding_challenges = bool(mission.coding_challenges)
         dto.coding_challenge_count = len(mission.coding_challenges)
         dto.completed_coding_challenges = coding_progress.get(mission.id, 0)
+        dto.submission_status = submission_status_map.get(mission.id)
+        participants = registration_counts.get(mission.id, 0)
+        dto.registered_participants = participants
+        dto.registration_open = registration_is_open(
+            mission,
+            participant_count=participants,
+            now=datetime.now(timezone.utc),
+        )
         response.append(dto)
 
     return response
@@ -370,6 +398,17 @@ def get_mission(
         xp_reward=mission.xp_reward,
         mana_reward=mission.mana_reward,
         difficulty=mission.difficulty,
+        format=mission.format,
+        event_location=mission.event_location,
+        event_address=mission.event_address,
+        event_starts_at=mission.event_starts_at,
+        event_ends_at=mission.event_ends_at,
+        registration_deadline=mission.registration_deadline,
+        registration_url=mission.registration_url,
+        registration_notes=mission.registration_notes,
+        capacity=mission.capacity,
+        contact_person=mission.contact_person,
+        contact_phone=mission.contact_phone,
         is_active=mission.is_active,
         is_available=is_available,
         locked_reasons=reasons,
@@ -384,6 +423,24 @@ def get_mission(
     data.has_coding_challenges = bool(mission.coding_challenges)
     data.coding_challenge_count = len(mission.coding_challenges)
     data.completed_coding_challenges = coding_progress.get(mission.id, 0)
+    data.submission_status = next(
+        (submission.status for submission in current_user.submissions if submission.mission_id == mission.id),
+        None,
+    )
+    participant_count = (
+        db.query(MissionSubmission)
+        .filter(
+            MissionSubmission.mission_id == mission.id,
+            MissionSubmission.status != SubmissionStatus.REJECTED,
+        )
+        .count()
+    )
+    data.registered_participants = participant_count
+    data.registration_open = registration_is_open(
+        mission,
+        participant_count=participant_count,
+        now=datetime.now(timezone.utc),
+    )
     if mission.id in completed_missions:
         data.is_completed = True
         data.is_available = False
@@ -554,6 +611,25 @@ async def submit(
         .filter(MissionSubmission.user_id == current_user.id, MissionSubmission.mission_id == mission.id)
         .first()
     )
+
+    participant_count = (
+        db.query(MissionSubmission)
+        .filter(
+            MissionSubmission.mission_id == mission.id,
+            MissionSubmission.status != SubmissionStatus.REJECTED,
+        )
+        .count()
+    )
+    registration_open_state = registration_is_open(
+        mission,
+        participant_count=participant_count,
+        now=datetime.now(timezone.utc),
+    )
+    if not registration_open_state and not existing_submission:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Регистрация на офлайн-мероприятие закрыта.",
+        )
 
     def _has_upload(upload: UploadFile | None) -> bool:
         return bool(upload and upload.filename)

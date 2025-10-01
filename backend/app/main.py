@@ -30,6 +30,13 @@ def run_migrations() -> None:
 
     config = Config(str(ALEMBIC_CONFIG))
     config.set_main_option("sqlalchemy.url", str(settings.database_url))
+    # Alembic трактует относительный script_location относительно текущей рабочей
+    # директории процесса. В тестах и фронтенд-сервере мы запускаем backend из
+    # корня репозитория, поэтому явно подсказываем абсолютный путь до папки с
+    # миграциями, чтобы `alembic` не падал с "Path doesn't exist: alembic".
+    config.set_main_option(
+        "script_location", str(Path(__file__).resolve().parents[1] / "alembic")
+    )
     script = ScriptDirectory.from_config(config)
     head_revision = script.get_current_head()
 
@@ -55,11 +62,17 @@ def run_migrations() -> None:
         if "mission_submissions" in tables:
             submission_columns = {column["name"] for column in inspector.get_columns("mission_submissions")}
 
+        mission_columns = set()
+        if "missions" in tables:
+            mission_columns = {column["name"] for column in inspector.get_columns("missions")}
+
         with engine.begin() as conn:
             if "preferred_branch" not in user_columns:
                 conn.execute(text("ALTER TABLE users ADD COLUMN preferred_branch VARCHAR(160)"))
             if "motivation" not in user_columns:
                 conn.execute(text("ALTER TABLE users ADD COLUMN motivation TEXT"))
+            if "profile_photo_path" not in user_columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN profile_photo_path VARCHAR(512)"))
 
             if "passport_path" not in submission_columns:
                 conn.execute(text("ALTER TABLE mission_submissions ADD COLUMN passport_path VARCHAR(512)"))
@@ -69,6 +82,39 @@ def run_migrations() -> None:
                 conn.execute(text("ALTER TABLE mission_submissions ADD COLUMN resume_path VARCHAR(512)"))
             if "resume_link" not in submission_columns:
                 conn.execute(text("ALTER TABLE mission_submissions ADD COLUMN resume_link VARCHAR(512)"))
+
+            if "missions" in tables:
+                # Легаси-базы без alembic_version пропускали миграцию с офлайн-полями,
+                # поэтому докидываем недостающие колонки вручную, чтобы API /admin не падало.
+                if "format" not in mission_columns:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE missions ADD COLUMN format VARCHAR(20) NOT NULL DEFAULT 'online'"
+                        )
+                    )
+                    conn.execute(text("UPDATE missions SET format = 'online' WHERE format IS NULL"))
+                if "event_location" not in mission_columns:
+                    conn.execute(text("ALTER TABLE missions ADD COLUMN event_location VARCHAR(160)"))
+                if "event_address" not in mission_columns:
+                    conn.execute(text("ALTER TABLE missions ADD COLUMN event_address VARCHAR(255)"))
+                if "event_starts_at" not in mission_columns:
+                    conn.execute(text("ALTER TABLE missions ADD COLUMN event_starts_at TIMESTAMP"))
+                if "event_ends_at" not in mission_columns:
+                    conn.execute(text("ALTER TABLE missions ADD COLUMN event_ends_at TIMESTAMP"))
+                if "registration_deadline" not in mission_columns:
+                    conn.execute(
+                        text("ALTER TABLE missions ADD COLUMN registration_deadline TIMESTAMP")
+                    )
+                if "registration_url" not in mission_columns:
+                    conn.execute(text("ALTER TABLE missions ADD COLUMN registration_url VARCHAR(512)"))
+                if "registration_notes" not in mission_columns:
+                    conn.execute(text("ALTER TABLE missions ADD COLUMN registration_notes TEXT"))
+                if "capacity" not in mission_columns:
+                    conn.execute(text("ALTER TABLE missions ADD COLUMN capacity INTEGER"))
+                if "contact_person" not in mission_columns:
+                    conn.execute(text("ALTER TABLE missions ADD COLUMN contact_person VARCHAR(120)"))
+                if "contact_phone" not in mission_columns:
+                    conn.execute(text("ALTER TABLE missions ADD COLUMN contact_phone VARCHAR(64)"))
 
             conn.execute(text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL)"))
             conn.execute(text("DELETE FROM alembic_version"))

@@ -20,6 +20,17 @@ type MissionBase = {
   xp_reward: number;
   mana_reward: number;
   difficulty: Difficulty;
+  format: 'online' | 'offline';
+  event_location?: string | null;
+  event_address?: string | null;
+  event_starts_at?: string | null;
+  event_ends_at?: string | null;
+  registration_deadline?: string | null;
+  registration_url?: string | null;
+  registration_notes?: string | null;
+  capacity?: number | null;
+  contact_person?: string | null;
+  contact_phone?: string | null;
   is_active: boolean;
 };
 
@@ -76,6 +87,17 @@ type FormState = {
   xp_reward: number;
   mana_reward: number;
   difficulty: Difficulty;
+  format: 'online' | 'offline';
+  event_location: string;
+  event_address: string;
+  event_starts_at: string;
+  event_ends_at: string;
+  registration_deadline: string;
+  registration_url: string;
+  registration_notes: string;
+  capacity: number | '';
+  contact_person: string;
+  contact_phone: string;
   minimum_rank_id: number | '';
   artifact_id: number | '';
   branch_id: number | '';
@@ -91,6 +113,17 @@ const initialFormState: FormState = {
   xp_reward: 0,
   mana_reward: 0,
   difficulty: 'medium',
+  format: 'online',
+  event_location: '',
+  event_address: '',
+  event_starts_at: '',
+  event_ends_at: '',
+  registration_deadline: '',
+  registration_url: '',
+  registration_notes: '',
+  capacity: '',
+  contact_person: '',
+  contact_phone: '',
   minimum_rank_id: '',
   artifact_id: '',
   branch_id: '',
@@ -107,6 +140,25 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const toInputDateTime = (value?: string | null) => {
+    if (!value) return '';
+    const date = new Date(value);
+    const offset = date.getTimezoneOffset();
+    const local = new Date(date.getTime() - offset * 60000);
+    return local.toISOString().slice(0, 16);
+  };
+
+  const fromInputDateTime = (value: string) => {
+    if (!value) return null;
+    const date = new Date(value);
+    return date.toISOString();
+  };
+
+  const sanitizeString = (value: string) => {
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+  };
 
   // Позволяет мгновенно подставлять базовые поля при переключении миссии,
   // пока загрузка детальной карточки не завершилась.
@@ -126,6 +178,17 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
         xp_reward: mission.xp_reward,
         mana_reward: mission.mana_reward,
         difficulty: mission.difficulty,
+        format: mission.format,
+        event_location: mission.event_location ?? '',
+        event_address: mission.event_address ?? '',
+        event_starts_at: toInputDateTime(mission.event_starts_at),
+        event_ends_at: toInputDateTime(mission.event_ends_at),
+        registration_deadline: toInputDateTime(mission.registration_deadline),
+        registration_url: mission.registration_url ?? '',
+        registration_notes: mission.registration_notes ?? '',
+        capacity: mission.capacity ?? '',
+        contact_person: mission.contact_person ?? '',
+        contact_phone: mission.contact_phone ?? '',
         minimum_rank_id: mission.minimum_rank_id ?? '',
         artifact_id: mission.artifact_id ?? '',
         branch_id: (() => {
@@ -174,6 +237,17 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
         xp_reward: baseMission.xp_reward,
         mana_reward: baseMission.mana_reward,
         difficulty: baseMission.difficulty,
+        format: baseMission.format,
+        event_location: baseMission.event_location ?? '',
+        event_address: baseMission.event_address ?? '',
+        event_starts_at: toInputDateTime(baseMission.event_starts_at),
+        event_ends_at: toInputDateTime(baseMission.event_ends_at),
+        registration_deadline: toInputDateTime(baseMission.registration_deadline),
+        registration_url: baseMission.registration_url ?? '',
+        registration_notes: baseMission.registration_notes ?? '',
+        capacity: baseMission.capacity ?? '',
+        contact_person: baseMission.contact_person ?? '',
+        contact_phone: baseMission.contact_phone ?? '',
         is_active: baseMission.is_active
       }));
     }
@@ -222,6 +296,17 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
       xp_reward: Number(form.xp_reward),
       mana_reward: Number(form.mana_reward),
       difficulty: form.difficulty,
+      format: form.format,
+      event_location: sanitizeString(form.event_location),
+      event_address: sanitizeString(form.event_address),
+      event_starts_at: fromInputDateTime(form.event_starts_at),
+      event_ends_at: fromInputDateTime(form.event_ends_at),
+      registration_deadline: fromInputDateTime(form.registration_deadline),
+      registration_url: sanitizeString(form.registration_url),
+      registration_notes: sanitizeString(form.registration_notes),
+      capacity: form.capacity === '' ? null : Number(form.capacity),
+      contact_person: sanitizeString(form.contact_person),
+      contact_phone: sanitizeString(form.contact_phone),
       minimum_rank_id: form.minimum_rank_id === '' ? null : Number(form.minimum_rank_id),
       artifact_id: form.artifact_id === '' ? null : Number(form.artifact_id),
       prerequisite_ids: form.prerequisite_ids,
@@ -313,6 +398,13 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
             </select>
           </label>
           <label>
+            Формат
+            <select value={form.format} onChange={(event) => updateField('format', event.target.value as 'online' | 'offline')}>
+              <option value="online">Онлайн</option>
+              <option value="offline">Офлайн встреча</option>
+            </select>
+          </label>
+          <label>
             Доступен с ранга
             <select value={form.minimum_rank_id === '' ? '' : String(form.minimum_rank_id)} onChange={(event) => updateField('minimum_rank_id', event.target.value === '' ? '' : Number(event.target.value))}>
               <option value="">Любой ранг</option>
@@ -338,6 +430,54 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
             <input type="checkbox" checked={form.is_active} onChange={(event) => updateField('is_active', event.target.checked)} /> Миссия активна
           </label>
         </div>
+
+        {form.format === 'offline' && (
+          <fieldset style={{ border: '1px solid rgba(162,155,254,0.3)', borderRadius: '16px', padding: '1rem' }}>
+            <legend style={{ padding: '0 0.5rem' }}>Офлайн-детали</legend>
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+              <label>
+                Локация / площадка
+                <input value={form.event_location} onChange={(event) => updateField('event_location', event.target.value)} placeholder="Например: Кампус Алабуга" />
+              </label>
+              <label>
+                Адрес
+                <input value={form.event_address} onChange={(event) => updateField('event_address', event.target.value)} placeholder="Город, улица, дом" />
+              </label>
+              <label>
+                Начало
+                <input type="datetime-local" value={form.event_starts_at} onChange={(event) => updateField('event_starts_at', event.target.value)} />
+              </label>
+              <label>
+                Завершение
+                <input type="datetime-local" value={form.event_ends_at} onChange={(event) => updateField('event_ends_at', event.target.value)} />
+              </label>
+              <label>
+                Дедлайн регистрации
+                <input type="datetime-local" value={form.registration_deadline} onChange={(event) => updateField('registration_deadline', event.target.value)} />
+              </label>
+              <label>
+                Вместимость
+                <input type="number" min={0} value={form.capacity === '' ? '' : form.capacity} onChange={(event) => updateField('capacity', event.target.value === '' ? '' : Number(event.target.value))} placeholder="Например: 40" />
+              </label>
+              <label>
+                Ссылка на мероприятие
+                <input type="url" value={form.registration_url} onChange={(event) => updateField('registration_url', event.target.value)} placeholder="https://..." />
+              </label>
+              <label>
+                Дополнительные заметки
+                <textarea value={form.registration_notes} onChange={(event) => updateField('registration_notes', event.target.value)} rows={3} placeholder="Что взять с собой, как пройти и т.д." />
+              </label>
+              <label>
+                Контактное лицо
+                <input value={form.contact_person} onChange={(event) => updateField('contact_person', event.target.value)} placeholder="Имя HR" />
+              </label>
+              <label>
+                Телефон/чат
+                <input value={form.contact_phone} onChange={(event) => updateField('contact_phone', event.target.value)} placeholder="+7..." />
+              </label>
+            </div>
+          </fieldset>
+        )}
 
         <label>
           Ветка
