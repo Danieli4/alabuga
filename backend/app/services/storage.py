@@ -7,6 +7,10 @@ import mimetypes
 import shutil
 from pathlib import Path
 
+from pathlib import Path
+import mimetypes
+import base64
+
 from fastapi import UploadFile
 
 from app.core.config import settings

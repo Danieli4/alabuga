@@ -61,7 +61,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div>
               <h1 style={{ margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Автостопом по Алабуге</h1>
               <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-                Всегда держите полотенце под рукой и следуйте подсказкам бортового гидронавигатора
+                Всегда держите полотенце под рукой и следуйте подсказкам бортового навигатора
               </p>
             </div>
             <nav style={{ display: 'flex', gap: '1rem', alignItems: 'center', fontWeight: 500 }}>
