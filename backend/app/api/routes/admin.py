@@ -38,7 +38,7 @@ from app.schemas.rank import (
     RankUpdate,
 )
 from app.schemas.user import CompetencyBase
-from app.services.mission import approve_submission, reject_submission
+from app.services.mission import approve_submission, registration_is_open, reject_submission
 from app.schemas.admin_stats import AdminDashboardStats, BranchCompletionStat, SubmissionStats
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -47,6 +47,11 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 def _mission_to_detail(mission: Mission) -> MissionDetail:
     """Формируем детальную схему миссии."""
 
+    participant_count = sum(
+        1 for submission in mission.submissions if submission.status != SubmissionStatus.REJECTED
+    )
+    is_registration_open = registration_is_open(mission, participant_count=participant_count)
+
     return MissionDetail(
         id=mission.id,
         title=mission.title,
@@ -54,6 +59,17 @@ def _mission_to_detail(mission: Mission) -> MissionDetail:
         xp_reward=mission.xp_reward,
         mana_reward=mission.mana_reward,
         difficulty=mission.difficulty,
+        format=mission.format,
+        event_location=mission.event_location,
+        event_address=mission.event_address,
+        event_starts_at=mission.event_starts_at,
+        event_ends_at=mission.event_ends_at,
+        registration_deadline=mission.registration_deadline,
+        registration_url=mission.registration_url,
+        registration_notes=mission.registration_notes,
+        capacity=mission.capacity,
+        contact_person=mission.contact_person,
+        contact_phone=mission.contact_phone,
         is_active=mission.is_active,
         minimum_rank_id=mission.minimum_rank_id,
         artifact_id=mission.artifact_id,
@@ -68,6 +84,8 @@ def _mission_to_detail(mission: Mission) -> MissionDetail:
         ],
         created_at=mission.created_at,
         updated_at=mission.updated_at,
+        registered_participants=participant_count,
+        registration_open=is_registration_open,
     )
 
 
@@ -143,6 +161,7 @@ def _load_mission(db: Session, mission_id: int) -> Mission:
             selectinload(Mission.prerequisites),
             selectinload(Mission.competency_rewards).selectinload(MissionCompetencyReward.competency),
             selectinload(Mission.branches),
+            selectinload(Mission.submissions),
         )
         .filter(Mission.id == mission_id)
         .one()
@@ -172,6 +191,7 @@ def admin_mission_detail(
             selectinload(Mission.prerequisites),
             selectinload(Mission.competency_rewards).selectinload(MissionCompetencyReward.competency),
             selectinload(Mission.branches),
+            selectinload(Mission.submissions),
         )
         .filter(Mission.id == mission_id)
         .first()
@@ -414,6 +434,17 @@ def create_mission_endpoint(
         xp_reward=mission_in.xp_reward,
         mana_reward=mission_in.mana_reward,
         difficulty=mission_in.difficulty,
+        format=mission_in.format,
+        event_location=mission_in.event_location,
+        event_address=mission_in.event_address,
+        event_starts_at=mission_in.event_starts_at,
+        event_ends_at=mission_in.event_ends_at,
+        registration_deadline=mission_in.registration_deadline,
+        registration_url=mission_in.registration_url,
+        registration_notes=mission_in.registration_notes,
+        capacity=mission_in.capacity,
+        contact_person=mission_in.contact_person,
+        contact_phone=mission_in.contact_phone,
         minimum_rank_id=mission_in.minimum_rank_id,
         artifact_id=mission_in.artifact_id,
     )
@@ -475,7 +506,25 @@ def update_mission_endpoint(
 
     payload = mission_in.model_dump(exclude_unset=True)
 
-    for attr in ["title", "description", "xp_reward", "mana_reward", "difficulty", "is_active"]:
+    for attr in [
+        "title",
+        "description",
+        "xp_reward",
+        "mana_reward",
+        "difficulty",
+        "is_active",
+        "format",
+        "event_location",
+        "event_address",
+        "event_starts_at",
+        "event_ends_at",
+        "registration_deadline",
+        "registration_url",
+        "registration_notes",
+        "capacity",
+        "contact_person",
+        "contact_phone",
+    ]:
         if attr in payload:
             setattr(mission, attr, payload[attr])
 
