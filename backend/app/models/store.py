@@ -30,6 +30,7 @@ class StoreItem(Base, TimestampMixin):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     cost_mana: Mapped[int] = mapped_column(Integer, nullable=False)
     stock: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    image_url: Mapped[str | None] = mapped_column(String(512))
 
     orders: Mapped[List["Order"]] = relationship("Order", back_populates="item")
 

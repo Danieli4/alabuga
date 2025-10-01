@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import Boolean, Enum as SQLEnum, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum as SQLEnum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -22,6 +32,13 @@ class MissionDifficulty(str, Enum):
     HARD = "hard"
 
 
+class MissionFormat(str, Enum):
+    """Форматы миссий."""
+
+    ONLINE = "online"
+    OFFLINE = "offline"
+
+
 class Mission(Base, TimestampMixin):
     """Игровая миссия."""
 
@@ -35,6 +52,18 @@ class Mission(Base, TimestampMixin):
     difficulty: Mapped[MissionDifficulty] = mapped_column(
         SQLEnum(MissionDifficulty), default=MissionDifficulty.MEDIUM, nullable=False
     )
+    format: Mapped[MissionFormat] = mapped_column(
+        SQLEnum(MissionFormat, name="missionformat", native_enum=False),
+        default=MissionFormat.ONLINE,
+        nullable=False,
+    )
+    registration_deadline: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    starts_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    location_title: Mapped[Optional[str]] = mapped_column(String(160))
+    location_address: Mapped[Optional[str]] = mapped_column(String(255))
+    location_url: Mapped[Optional[str]] = mapped_column(String(512))
+    capacity: Mapped[Optional[int]] = mapped_column(Integer)
     minimum_rank_id: Mapped[Optional[int]] = mapped_column(ForeignKey("ranks.id"))
     artifact_id: Mapped[Optional[int]] = mapped_column(ForeignKey("artifacts.id"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -55,6 +84,9 @@ class Mission(Base, TimestampMixin):
     )
     submissions: Mapped[List["MissionSubmission"]] = relationship(
         "MissionSubmission", back_populates="mission", cascade="all, delete-orphan"
+    )
+    registrations: Mapped[List["MissionRegistration"]] = relationship(
+        "MissionRegistration", back_populates="mission", cascade="all, delete-orphan"
     )
     rank_requirements: Mapped[List["RankMissionRequirement"]] = relationship(
         "RankMissionRequirement", back_populates="mission"
@@ -135,3 +167,18 @@ class MissionSubmission(Base, TimestampMixin):
 
     mission = relationship("Mission", back_populates="submissions")
     user = relationship("User", back_populates="submissions")
+
+
+class MissionRegistration(Base, TimestampMixin):
+    """Регистрация пилота на офлайн-мероприятие."""
+
+    __tablename__ = "mission_registrations"
+    __table_args__ = (
+        UniqueConstraint("mission_id", "user_id", name="uq_mission_registration"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    mission_id: Mapped[int] = mapped_column(ForeignKey("missions.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    mission = relationship("Mission", back_populates="registrations")
+    user = relationship("User", back_populates="mission_registrations")

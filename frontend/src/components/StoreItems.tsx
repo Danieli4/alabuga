@@ -10,6 +10,7 @@ type StoreItem = {
   description: string;
   cost_mana: number;
   stock: number;
+  image_url?: string | null;
 };
 
 const Card = styled.div`
@@ -17,6 +18,29 @@ const Card = styled.div`
   border-radius: 14px;
   padding: 1.25rem;
   border: 1px solid rgba(108, 92, 231, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+`;
+
+const ItemImage = styled.img`
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid rgba(108, 92, 231, 0.35);
+  background: rgba(108, 92, 231, 0.08);
+`;
+
+const ImagePlaceholder = styled.div`
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+  border: 1px dashed rgba(108, 92, 231, 0.35);
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  background: rgba(108, 92, 231, 0.05);
 `;
 
 type Feedback = { kind: 'success' | 'error'; text: string } | null;
@@ -68,12 +92,23 @@ export function StoreItems({ items, token }: { items: StoreItem[]; token?: strin
       <div className="grid">
         {items.map((item) => (
           <Card key={item.id}>
-            <h3 style={{ marginBottom: '0.5rem' }}>{item.name}</h3>
-            <p style={{ color: 'var(--text-muted)' }}>{item.description}</p>
-            <p style={{ marginTop: '1rem' }}>{item.cost_mana} ⚡ · остаток {item.stock}</p>
+            {item.image_url ? (
+              <ItemImage
+                src={item.image_url}
+                alt={`Изображение товара «${item.name}»`}
+                loading="lazy"
+              />
+            ) : (
+              <ImagePlaceholder>Изображение появится позже</ImagePlaceholder>
+            )}
+            <div>
+              <h3 style={{ marginBottom: '0.5rem' }}>{item.name}</h3>
+              <p style={{ color: 'var(--text-muted)', margin: 0 }}>{item.description}</p>
+            </div>
+            <p style={{ margin: 0 }}>{item.cost_mana} ⚡ · остаток {item.stock}</p>
             <button
               className="primary"
-              style={{ marginTop: '1rem' }}
+              style={{ marginTop: 'auto' }}
               onClick={() => handlePurchase(item.id)}
               disabled={item.stock === 0 || !token || loadingId === item.id}
             >

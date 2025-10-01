@@ -9,6 +9,29 @@ from app.models.journal import JournalEventType
 from app.models.store import Order, OrderStatus, StoreItem
 from app.models.user import User
 from app.services.journal import log_event
+from app.schemas.store import StoreItemRead
+
+
+def build_store_image_url(relative_path: str | None) -> str | None:
+    """Преобразуем относительный путь в публичный URL."""
+
+    if not relative_path:
+        return None
+    normalized = relative_path.lstrip("/")
+    return f"/uploads/{normalized}"
+
+
+def store_item_to_read(item: StoreItem) -> StoreItemRead:
+    """Готовим схему товара с публичным URL изображения."""
+
+    return StoreItemRead(
+        id=item.id,
+        name=item.name,
+        description=item.description,
+        cost_mana=item.cost_mana,
+        stock=item.stock,
+        image_url=build_store_image_url(item.image_url),
+    )
 
 
 def create_order(db: Session, user: User, item: StoreItem, comment: str | None) -> Order:

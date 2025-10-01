@@ -7,7 +7,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, computed_field
 
-from app.models.mission import MissionDifficulty, SubmissionStatus
+from app.models.mission import MissionDifficulty, MissionFormat, SubmissionStatus
 
 
 class MissionBase(BaseModel):
@@ -19,6 +19,7 @@ class MissionBase(BaseModel):
     xp_reward: int
     mana_reward: int
     difficulty: MissionDifficulty
+    format: MissionFormat
     is_active: bool
     is_available: bool = True
     locked_reasons: list[str] = Field(default_factory=list)
@@ -27,6 +28,17 @@ class MissionBase(BaseModel):
     has_coding_challenges: bool = False
     coding_challenge_count: int = 0
     completed_coding_challenges: int = 0
+    registration_deadline: Optional[datetime] = None
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    location_title: Optional[str] = None
+    location_address: Optional[str] = None
+    location_url: Optional[str] = None
+    capacity: Optional[int] = None
+    registered_count: int = 0
+    spots_left: Optional[int] = None
+    is_registration_open: bool = False
+    is_registered: bool = False
 
     class Config:
         from_attributes = True
@@ -67,12 +79,20 @@ class MissionCreate(BaseModel):
     xp_reward: int
     mana_reward: int
     difficulty: MissionDifficulty = MissionDifficulty.MEDIUM
+    format: MissionFormat = MissionFormat.ONLINE
     minimum_rank_id: Optional[int] = None
     artifact_id: Optional[int] = None
     prerequisite_ids: list[int] = []
     competency_rewards: list[MissionCreateReward] = []
     branch_id: Optional[int] = None
     branch_order: int = 1
+    registration_deadline: Optional[datetime] = None
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    location_title: Optional[str] = None
+    location_address: Optional[str] = None
+    location_url: Optional[str] = None
+    capacity: Optional[int] = None
 
 
 class MissionUpdate(BaseModel):
@@ -83,6 +103,7 @@ class MissionUpdate(BaseModel):
     xp_reward: Optional[int] = None
     mana_reward: Optional[int] = None
     difficulty: Optional[MissionDifficulty] = None
+    format: Optional[MissionFormat] = None
     minimum_rank_id: Optional[int | None] = None
     artifact_id: Optional[int | None] = None
     prerequisite_ids: Optional[list[int]] = None
@@ -90,6 +111,13 @@ class MissionUpdate(BaseModel):
     branch_id: Optional[int | None] = None
     branch_order: Optional[int] = None
     is_active: Optional[bool] = None
+    registration_deadline: Optional[datetime | None] = None
+    starts_at: Optional[datetime | None] = None
+    ends_at: Optional[datetime | None] = None
+    location_title: Optional[str | None] = None
+    location_address: Optional[str | None] = None
+    location_url: Optional[str | None] = None
+    capacity: Optional[int | None] = None
 
 
 class MissionSubmissionCreate(BaseModel):

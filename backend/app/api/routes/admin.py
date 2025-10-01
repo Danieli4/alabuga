@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session, selectinload
@@ -19,6 +19,7 @@ from app.models.mission import (
     SubmissionStatus,
 )
 from app.models.rank import Rank, RankCompetencyRequirement, RankMissionRequirement
+from app.models.store import StoreItem
 from app.models.user import Competency, User, UserRole
 from app.schemas.artifact import ArtifactCreate, ArtifactRead, ArtifactUpdate
 from app.schemas.branch import BranchCreate, BranchMissionRead, BranchRead, BranchUpdate
@@ -37,23 +38,36 @@ from app.schemas.rank import (
     RankRequirementMission,
     RankUpdate,
 )
+from app.schemas.store import StoreItemRead, StoreItemUpdate
 from app.schemas.user import CompetencyBase
-from app.services.mission import approve_submission, reject_submission
+from app.services.mission import approve_submission, registration_is_open, reject_submission
+from app.services.storage import delete_store_image, save_store_image
+from app.services.store import store_item_to_read
 from app.schemas.admin_stats import AdminDashboardStats, BranchCompletionStat, SubmissionStats
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
+def _sanitize_optional(value: str | None) -> str | None:
+    """Обрезаем пробелы и заменяем пустые строки на None."""
+
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
 def _mission_to_detail(mission: Mission) -> MissionDetail:
     """Формируем детальную схему миссии."""
 
-    return MissionDetail(
+    detail = MissionDetail(
         id=mission.id,
         title=mission.title,
         description=mission.description,
         xp_reward=mission.xp_reward,
         mana_reward=mission.mana_reward,
         difficulty=mission.difficulty,
+        format=mission.format,
         is_active=mission.is_active,
         minimum_rank_id=mission.minimum_rank_id,
         artifact_id=mission.artifact_id,
@@ -68,7 +82,22 @@ def _mission_to_detail(mission: Mission) -> MissionDetail:
         ],
         created_at=mission.created_at,
         updated_at=mission.updated_at,
+        registration_deadline=mission.registration_deadline,
+        starts_at=mission.starts_at,
+        ends_at=mission.ends_at,
+        location_title=mission.location_title,
+        location_address=mission.location_address,
+        location_url=mission.location_url,
+        capacity=mission.capacity,
     )
+    registered_count = len(mission.registrations)
+    detail.registered_count = registered_count
+    detail.is_registration_open = registration_is_open(
+        mission, registered_count=registered_count
+    )
+    if mission.capacity is not None:
+        detail.spots_left = max(mission.capacity - registered_count, 0)
+    return detail
 
 
 def _rank_to_detailed(rank: Rank) -> RankDetailed:
@@ -143,6 +172,7 @@ def _load_mission(db: Session, mission_id: int) -> Mission:
             selectinload(Mission.prerequisites),
             selectinload(Mission.competency_rewards).selectinload(MissionCompetencyReward.competency),
             selectinload(Mission.branches),
+            selectinload(Mission.registrations),
         )
         .filter(Mission.id == mission_id)
         .one()
@@ -155,6 +185,145 @@ def admin_missions(*, db: Session = Depends(get_db), current_user=Depends(requir
 
     missions = db.query(Mission).order_by(Mission.title).all()
     return [MissionBase.model_validate(mission) for mission in missions]
+
+
+@router.get("/store/items", response_model=list[StoreItemRead], summary="Товары магазина (HR)")
+def admin_store_items(
+    *, db: Session = Depends(get_db), current_user=Depends(require_hr)
+) -> list[StoreItemRead]:
+    """Возвращаем товары магазина для панели HR."""
+
+    items = db.query(StoreItem).order_by(StoreItem.name).all()
+    return [store_item_to_read(item) for item in items]
+
+
+@router.post(
+    "/store/items",
+    response_model=StoreItemRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Создать товар",
+)
+def admin_store_create(
+    name: str = Form(...),
+    description: str = Form(...),
+    cost_mana: int = Form(...),
+    stock: int = Form(...),
+    image: UploadFile = File(...),
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> StoreItemRead:
+    """Создаём новый товар в магазине."""
+
+    name = name.strip()
+    description = description.strip()
+    if not name or not description:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Название и описание не могут быть пустыми",
+        )
+
+    try:
+        image_path = save_store_image(upload=image)
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+
+    item = StoreItem(
+        name=name,
+        description=description,
+        cost_mana=cost_mana,
+        stock=stock,
+        image_url=image_path,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return store_item_to_read(item)
+
+
+@router.patch(
+    "/store/items/{item_id}",
+    response_model=StoreItemRead,
+    summary="Обновить товар",
+)
+def admin_store_update(
+    item_id: int,
+    item_in: StoreItemUpdate,
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> StoreItemRead:
+    """Редактируем существующий товар."""
+
+    item = db.query(StoreItem).filter(StoreItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Товар не найден")
+
+    update_data = item_in.model_dump(exclude_unset=True)
+    if "name" in update_data and update_data["name"] is not None:
+        new_name = update_data["name"].strip()
+        if not new_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Название не может быть пустым",
+            )
+        item.name = new_name
+    if "description" in update_data and update_data["description"] is not None:
+        new_description = update_data["description"].strip()
+        if not new_description:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Описание не может быть пустым",
+            )
+        item.description = new_description
+    if "cost_mana" in update_data and update_data["cost_mana"] is not None:
+        item.cost_mana = update_data["cost_mana"]
+    if "stock" in update_data and update_data["stock"] is not None:
+        item.stock = update_data["stock"]
+    if "image_url" in update_data:
+        new_value = _sanitize_optional(update_data["image_url"])
+        if new_value is None:
+            delete_store_image(item.image_url)
+        item.image_url = new_value
+
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return store_item_to_read(item)
+
+
+@router.post(
+    "/store/items/{item_id}/image",
+    response_model=StoreItemRead,
+    summary="Обновить изображение товара",
+)
+def admin_store_update_image(
+    item_id: int,
+    image: UploadFile = File(...),
+    *,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_hr),
+) -> StoreItemRead:
+    """Заменяем изображение товара на загруженный файл."""
+
+    item = db.query(StoreItem).filter(StoreItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Товар не найден")
+
+    try:
+        new_path = save_store_image(upload=image)
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+
+    old_path = item.image_url
+    item.image_url = new_path
+
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+
+    delete_store_image(old_path)
+    return store_item_to_read(item)
 
 
 @router.get("/missions/{mission_id}", response_model=MissionDetail, summary="Детали миссии")
@@ -414,8 +583,16 @@ def create_mission_endpoint(
         xp_reward=mission_in.xp_reward,
         mana_reward=mission_in.mana_reward,
         difficulty=mission_in.difficulty,
+        format=mission_in.format,
         minimum_rank_id=mission_in.minimum_rank_id,
         artifact_id=mission_in.artifact_id,
+        registration_deadline=mission_in.registration_deadline,
+        starts_at=mission_in.starts_at,
+        ends_at=mission_in.ends_at,
+        location_title=mission_in.location_title,
+        location_address=mission_in.location_address,
+        location_url=mission_in.location_url,
+        capacity=mission_in.capacity,
     )
     db.add(mission)
     db.flush()
@@ -475,7 +652,22 @@ def update_mission_endpoint(
 
     payload = mission_in.model_dump(exclude_unset=True)
 
-    for attr in ["title", "description", "xp_reward", "mana_reward", "difficulty", "is_active"]:
+    for attr in [
+        "title",
+        "description",
+        "xp_reward",
+        "mana_reward",
+        "difficulty",
+        "format",
+        "is_active",
+        "registration_deadline",
+        "starts_at",
+        "ends_at",
+        "location_title",
+        "location_address",
+        "location_url",
+        "capacity",
+    ]:
         if attr in payload:
             setattr(mission, attr, payload[attr])
 
@@ -485,9 +677,10 @@ def update_mission_endpoint(
     if "artifact_id" in payload:
         mission.artifact_id = payload["artifact_id"]
 
-    if "competency_rewards" in payload:
+    if mission_in.competency_rewards is not None:
         mission.competency_rewards.clear()
-        for reward in payload["competency_rewards"]:
+        db.flush()
+        for reward in mission_in.competency_rewards:
             mission.competency_rewards.append(
                 MissionCompetencyReward(
                     mission_id=mission.id,

@@ -8,6 +8,7 @@ interface StoreItem {
   description: string;
   cost_mana: number;
   stock: number;
+  image_url?: string | null;
 }
 
 async function fetchStore(token: string) {

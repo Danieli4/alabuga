@@ -16,6 +16,7 @@ from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.coding import CodingAttempt
+    from app.models.mission import MissionRegistration
 
 class UserRole(str, Enum):
     """Типы ролей в системе."""
@@ -53,6 +54,9 @@ class User(Base, TimestampMixin):
     )
     submissions: Mapped[List["MissionSubmission"]] = relationship(
         "MissionSubmission", back_populates="user", cascade="all, delete-orphan"
+    )
+    mission_registrations: Mapped[List["MissionRegistration"]] = relationship(
+        "MissionRegistration", back_populates="user", cascade="all, delete-orphan"
     )
     orders: Mapped[List["Order"]] = relationship("Order", back_populates="user")
     journal_entries: Mapped[List["JournalEntry"]] = relationship(

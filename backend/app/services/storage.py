@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import mimetypes
+import secrets
 import shutil
 
 from fastapi import UploadFile
@@ -42,6 +44,45 @@ def save_submission_document(
 
 def delete_submission_document(relative_path: str | None) -> None:
     """Удаляем файл вложения, если он существует."""
+
+    _delete_relative_file(relative_path)
+
+
+def save_store_image(*, upload: UploadFile) -> str:
+    """Сохраняем изображение товара магазина и возвращаем относительный путь."""
+
+    allowed_types = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+    }
+
+    content_type = upload.content_type or mimetypes.guess_type(upload.filename or "")[0]
+    if content_type not in allowed_types:
+        raise ValueError("Допустимы только изображения JPG, PNG или WEBP")
+
+    extension = allowed_types[content_type]
+    target_dir = settings.uploads_path / "store"
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = f"{secrets.token_hex(8)}{extension}"
+    target_path = target_dir / filename
+    with target_path.open("wb") as buffer:
+        upload.file.seek(0)
+        shutil.copyfileobj(upload.file, buffer)
+    upload.file.seek(0)
+
+    return target_path.relative_to(settings.uploads_path).as_posix()
+
+
+def delete_store_image(relative_path: str | None) -> None:
+    """Удаляем изображение товара магазина."""
+
+    _delete_relative_file(relative_path)
+
+
+def _delete_relative_file(relative_path: str | None) -> None:
+    """Удаляем файл в каталоге uploads и чистим пустые директории."""
 
     if not relative_path:
         return

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, selectinload
@@ -11,7 +12,7 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.coding import CodingAttempt, CodingChallenge
 from app.models.branch import Branch, BranchMission
-from app.models.mission import Mission, MissionSubmission, SubmissionStatus
+from app.models.mission import Mission, MissionFormat, MissionSubmission, SubmissionStatus
 from app.models.user import User, UserRole
 from app.models.python import PythonChallenge, PythonUserProgress
 from app.schemas.branch import BranchMissionRead, BranchRead
@@ -27,7 +28,12 @@ from app.schemas.coding import (
     CodingRunResponse,
 )
 from app.services.coding import count_completed_challenges, evaluate_challenge
-from app.services.mission import UNSET, submit_mission
+from app.services.mission import (
+    UNSET,
+    register_for_offline_mission,
+    registration_is_open,
+    submit_mission,
+)
 from app.services.storage import delete_submission_document, save_submission_document
 from app.core.config import settings
 
@@ -94,6 +100,20 @@ def _mission_availability(
 
     is_available = mission.is_active and not reasons
     return is_available, reasons
+
+
+def _collect_registration_state(
+    *, mission: Mission, user_id: int
+) -> tuple[int, bool, bool, int | None]:
+    """Считаем запись на офлайн-миссию."""
+
+    registered_count = len(mission.registrations)
+    is_registered = any(reg.user_id == user_id for reg in mission.registrations)
+    is_open = registration_is_open(mission, registered_count=registered_count)
+    spots_left: int | None = None
+    if mission.capacity is not None:
+        spots_left = max(mission.capacity - registered_count, 0)
+    return registered_count, is_registered, is_open, spots_left
 
 
 def _ensure_mission_access(
@@ -274,6 +294,7 @@ def list_missions(
             selectinload(Mission.prerequisites),
             selectinload(Mission.minimum_rank),
             selectinload(Mission.coding_challenges),
+            selectinload(Mission.registrations),
         )
         .filter(Mission.is_active.is_(True))
         .order_by(Mission.id)
@@ -310,6 +331,14 @@ def list_missions(
         dto.has_coding_challenges = bool(mission.coding_challenges)
         dto.coding_challenge_count = len(mission.coding_challenges)
         dto.completed_coding_challenges = coding_progress.get(mission.id, 0)
+        registered_count, is_registered, is_open, spots_left = _collect_registration_state(
+            mission=mission,
+            user_id=current_user.id,
+        )
+        dto.registered_count = registered_count
+        dto.is_registered = is_registered
+        dto.is_registration_open = is_open
+        dto.spots_left = spots_left
         response.append(dto)
 
     return response
@@ -326,7 +355,10 @@ def get_mission(
 
     mission = (
         db.query(Mission)
-        .options(selectinload(Mission.coding_challenges))
+        .options(
+            selectinload(Mission.coding_challenges),
+            selectinload(Mission.registrations),
+        )
         .filter(Mission.id == mission_id, Mission.is_active.is_(True))
         .first()
     )
@@ -370,6 +402,7 @@ def get_mission(
         xp_reward=mission.xp_reward,
         mana_reward=mission.mana_reward,
         difficulty=mission.difficulty,
+        format=mission.format,
         is_active=mission.is_active,
         is_available=is_available,
         locked_reasons=reasons,
@@ -379,16 +412,74 @@ def get_mission(
         competency_rewards=rewards,
         created_at=mission.created_at,
         updated_at=mission.updated_at,
+        registration_deadline=mission.registration_deadline,
+        starts_at=mission.starts_at,
+        ends_at=mission.ends_at,
+        location_title=mission.location_title,
+        location_address=mission.location_address,
+        location_url=mission.location_url,
+        capacity=mission.capacity,
     )
     data.requires_documents = mission.id in REQUIRED_DOCUMENT_MISSIONS
     data.has_coding_challenges = bool(mission.coding_challenges)
     data.coding_challenge_count = len(mission.coding_challenges)
     data.completed_coding_challenges = coding_progress.get(mission.id, 0)
+    registered_count, is_registered, is_open, spots_left = _collect_registration_state(
+        mission=mission,
+        user_id=current_user.id,
+    )
+    data.registered_count = registered_count
+    data.is_registered = is_registered
+    data.is_registration_open = is_open
+    data.spots_left = spots_left
     if mission.id in completed_missions:
         data.is_completed = True
         data.is_available = False
         data.locked_reasons = ["Миссия уже завершена"]
     return data
+
+
+@router.post(
+    "/{mission_id}/register",
+    response_model=MissionDetail,
+    summary="Регистрация на офлайн-мероприятие",
+)
+def register_offline(
+    mission_id: int,
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MissionDetail:
+    """Позволяем пилоту записаться на офлайн-миссию."""
+
+    mission = (
+        db.query(Mission)
+        .options(
+            selectinload(Mission.prerequisites),
+            selectinload(Mission.minimum_rank),
+            selectinload(Mission.coding_challenges),
+            selectinload(Mission.registrations),
+        )
+        .filter(Mission.id == mission_id, Mission.is_active.is_(True))
+        .first()
+    )
+    if not mission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Миссия не найдена")
+
+    if mission.format != MissionFormat.OFFLINE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Регистрация доступна только для офлайн-мероприятий",
+        )
+
+    mission_completed, _ = _ensure_mission_access(mission=mission, user=current_user, db=db)
+    if mission_completed:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Миссия уже завершена")
+
+    register_for_offline_mission(db=db, user=current_user, mission=mission)
+
+    # Возвращаем актуальные данные карточки
+    return get_mission(mission_id, db=db, current_user=current_user)
 
 
 @router.get(

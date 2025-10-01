@@ -2,6 +2,7 @@ import { apiFetch } from '../../../lib/api';
 import { requireSession } from '../../../lib/auth/session';
 import { MissionSubmissionForm } from '../../../components/MissionSubmissionForm';
 import { CodingMissionPanel } from '../../../components/CodingMissionPanel';
+import { MissionRegistrationPanel } from '../../../components/MissionRegistrationPanel';
 
 interface MissionDetail {
   id: number;
@@ -10,6 +11,7 @@ interface MissionDetail {
   xp_reward: number;
   mana_reward: number;
   difficulty: string;
+  format: 'online' | 'offline';
   minimum_rank_id: number | null;
   artifact_id: number | null;
   prerequisites: number[];
@@ -25,6 +27,17 @@ interface MissionDetail {
   has_coding_challenges: boolean;
   coding_challenge_count: number;
   completed_coding_challenges: number;
+  registration_deadline: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  location_title: string | null;
+  location_address: string | null;
+  location_url: string | null;
+  capacity: number | null;
+  registered_count: number;
+  spots_left: number | null;
+  is_registration_open: boolean;
+  is_registered: boolean;
 }
 
 async function fetchMission(id: number, token: string) {
@@ -85,6 +98,22 @@ export default async function MissionPage({ params }: MissionPageProps) {
       })
     : null;
 
+  const isOffline = mission.format === 'offline';
+  const dateFormatter = new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  const timeFormatter = new Intl.DateTimeFormat('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  const startText = mission.starts_at ? dateFormatter.format(new Date(mission.starts_at)) : null;
+  const endDate = mission.ends_at ? new Date(mission.ends_at) : null;
+  const endText = endDate ? timeFormatter.format(endDate) : null;
+  const deadlineText = mission.registration_deadline ? dateFormatter.format(new Date(mission.registration_deadline)) : null;
+
   return (
     <section>
       <h2>{mission.title}</h2>
@@ -97,6 +126,43 @@ export default async function MissionPage({ params }: MissionPageProps) {
         <p style={{ marginTop: '0.5rem', color: 'var(--accent-light)' }}>
           Прогресс тренажёра: {mission.completed_coding_challenges}/{mission.coding_challenge_count} заданий
         </p>
+      )}
+      {isOffline && (
+        <div className="card" style={{ marginTop: '1rem' }}>
+          <h3>Офлайн-мероприятие</h3>
+          {startText && (
+            <p style={{ marginTop: '0.5rem' }}>
+              🗓 {startText}
+              {endText ? ` · до ${endText}` : ''}
+            </p>
+          )}
+          {mission.location_title && (
+            <p style={{ marginTop: '0.25rem' }}>
+              📍 {mission.location_title}
+              {mission.location_address ? ` — ${mission.location_address}` : ''}
+            </p>
+          )}
+          {mission.location_url && (
+            <p style={{ marginTop: '0.25rem' }}>
+              <a className="secondary" href={mission.location_url} target="_blank" rel="noreferrer">
+                Открыть карту
+              </a>
+            </p>
+          )}
+          {mission.capacity !== null && (
+            <p style={{ marginTop: '0.25rem' }}>
+              👥 Мест осталось: {mission.spots_left ?? 0} из {mission.capacity}
+            </p>
+          )}
+          {deadlineText && (
+            <p style={{ marginTop: '0.25rem', color: 'var(--accent-light)' }}>
+              Регистрация до {deadlineText}
+            </p>
+          )}
+          {mission.is_registered && (
+            <p style={{ marginTop: '0.25rem', color: 'var(--success)' }}>Вы уже зарегистрированы на мероприятие.</p>
+          )}
+        </div>
       )}
       {mission.is_completed && (
         <div
@@ -142,6 +208,17 @@ export default async function MissionPage({ params }: MissionPageProps) {
           token={session.token}
           initialState={codingState}
           initialCompleted={mission.is_completed}
+        />
+      ) : isOffline ? (
+        <MissionRegistrationPanel
+          missionId={mission.id}
+          token={session.token}
+          isRegistered={mission.is_registered}
+          isRegistrationOpen={mission.is_registration_open}
+          registeredCount={mission.registered_count}
+          spotsLeft={mission.spots_left}
+          registrationDeadline={mission.registration_deadline}
+          startsAt={mission.starts_at}
         />
       ) : (
         <MissionSubmissionForm

@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.journal import JournalEventType
-from app.models.mission import Mission, MissionSubmission, SubmissionStatus
+from app.models.mission import (
+    Mission,
+    MissionFormat,
+    MissionRegistration,
+    MissionSubmission,
+    SubmissionStatus,
+)
 from app.models.user import User, UserArtifact, UserCompetency
 from app.services.journal import log_event
 from app.services.rank import apply_rank_upgrade
@@ -16,6 +23,103 @@ from app.services.storage import delete_submission_document
 
 
 UNSET: Any = object()
+
+
+def _ensure_aware(value: datetime | None) -> datetime | None:
+    """SQLite возвращает наивные datetime — приводим их к UTC."""
+
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+def registration_is_open(
+    mission: Mission,
+    *,
+    now: datetime | None = None,
+    registered_count: int | None = None,
+) -> bool:
+    """Проверяем, доступна ли запись на офлайн-мероприятие."""
+
+    if mission.format != MissionFormat.OFFLINE:
+        return False
+
+    current_time = now or datetime.now(timezone.utc)
+
+    deadline = _ensure_aware(mission.registration_deadline)
+    start_at = _ensure_aware(mission.starts_at)
+
+    if deadline and deadline < current_time:
+        return False
+
+    if start_at and start_at < current_time:
+        return False
+
+    if mission.capacity is not None:
+        count = registered_count if registered_count is not None else len(mission.registrations)
+        if count >= mission.capacity:
+            return False
+
+    return True
+
+
+def register_for_offline_mission(
+    *,
+    db: Session,
+    user: User,
+    mission: Mission,
+) -> MissionRegistration:
+    """Регистрируем пилота на офлайн-миссию."""
+
+    if mission.format != MissionFormat.OFFLINE:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Это онлайн-миссия")
+
+    existing = (
+        db.query(MissionRegistration)
+        .filter(
+            MissionRegistration.mission_id == mission.id,
+            MissionRegistration.user_id == user.id,
+        )
+        .first()
+    )
+    if existing:
+        return existing
+
+    registered_count = (
+        db.query(MissionRegistration)
+        .filter(MissionRegistration.mission_id == mission.id)
+        .count()
+    )
+
+    if mission.capacity is not None and registered_count >= mission.capacity:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Свободные места закончились")
+
+    now = datetime.now(timezone.utc)
+    deadline = _ensure_aware(mission.registration_deadline)
+    start_at = _ensure_aware(mission.starts_at)
+
+    if deadline and deadline < now:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Регистрация завершена")
+    if start_at and start_at < now:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Мероприятие уже началось")
+
+    registration = MissionRegistration(mission_id=mission.id, user_id=user.id)
+    db.add(registration)
+    db.commit()
+    db.refresh(registration)
+
+    log_event(
+        db,
+        user_id=user.id,
+        event_type=JournalEventType.MISSION_COMPLETED,
+        title=f"Заявка на мероприятие «{mission.title}» отправлена",
+        description="Вы записались на офлайн-мероприятие. Напоминание придёт ближе к дате.",
+        payload={"mission_id": mission.id},
+    )
+
+    return registration
 
 
 def submit_mission(

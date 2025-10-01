@@ -13,6 +13,13 @@ const DIFFICULTIES = [
 
 type Difficulty = (typeof DIFFICULTIES)[number]['value'];
 
+const FORMATS = [
+  { value: 'online', label: 'Онлайн' },
+  { value: 'offline', label: 'Офлайн' }
+] as const;
+
+type MissionFormatOption = (typeof FORMATS)[number]['value'];
+
 type MissionBase = {
   id: number;
   title: string;
@@ -21,6 +28,14 @@ type MissionBase = {
   mana_reward: number;
   difficulty: Difficulty;
   is_active: boolean;
+  format: MissionFormatOption;
+  registration_deadline: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  location_title: string | null;
+  location_address: string | null;
+  location_url: string | null;
+  capacity: number | null;
 };
 
 interface MissionDetail extends MissionBase {
@@ -76,6 +91,7 @@ type FormState = {
   xp_reward: number;
   mana_reward: number;
   difficulty: Difficulty;
+  format: MissionFormatOption;
   minimum_rank_id: number | '';
   artifact_id: number | '';
   branch_id: number | '';
@@ -83,6 +99,13 @@ type FormState = {
   prerequisite_ids: number[];
   competency_rewards: RewardInput[];
   is_active: boolean;
+  registration_deadline: string;
+  starts_at: string;
+  ends_at: string;
+  location_title: string;
+  location_address: string;
+  location_url: string;
+  capacity: number | '';
 };
 
 const initialFormState: FormState = {
@@ -91,13 +114,21 @@ const initialFormState: FormState = {
   xp_reward: 0,
   mana_reward: 0,
   difficulty: 'medium',
+  format: 'online',
   minimum_rank_id: '',
   artifact_id: '',
   branch_id: '',
   branch_order: 1,
   prerequisite_ids: [],
   competency_rewards: [],
-  is_active: true
+  is_active: true,
+  registration_deadline: '',
+  starts_at: '',
+  ends_at: '',
+  location_title: '',
+  location_address: '',
+  location_url: '',
+  capacity: ''
 };
 
 export function AdminMissionManager({ token, missions, branches, ranks, competencies, artifacts }: Props) {
@@ -107,13 +138,44 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [registrationInfo, setRegistrationInfo] = useState<{
+    count: number;
+    spotsLeft: number | null;
+    isOpen: boolean;
+  } | null>(null);
 
   // Позволяет мгновенно подставлять базовые поля при переключении миссии,
   // пока загрузка детальной карточки не завершилась.
   const missionById = useMemo(() => new Map(missions.map((mission) => [mission.id, mission])), [missions]);
 
+  const toInputDateTime = (value: string | null) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (num: number) => `${num}`.padStart(2, '0');
+    const year = date.getFullYear();
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  const toIsoDateTime = (value: string) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
+  };
+
+  const toNullableString = (value: string) => {
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+  };
+
   const resetForm = () => {
     setForm(initialFormState);
+    setRegistrationInfo(null);
   };
 
   const loadMission = async (missionId: number) => {
@@ -126,6 +188,7 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
         xp_reward: mission.xp_reward,
         mana_reward: mission.mana_reward,
         difficulty: mission.difficulty,
+        format: mission.format,
         minimum_rank_id: mission.minimum_rank_id ?? '',
         artifact_id: mission.artifact_id ?? '',
         branch_id: (() => {
@@ -145,7 +208,19 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
           competency_id: reward.competency_id,
           level_delta: reward.level_delta
         })),
-        is_active: mission.is_active
+        is_active: mission.is_active,
+        registration_deadline: toInputDateTime(mission.registration_deadline),
+        starts_at: toInputDateTime(mission.starts_at),
+        ends_at: toInputDateTime(mission.ends_at),
+        location_title: mission.location_title ?? '',
+        location_address: mission.location_address ?? '',
+        location_url: mission.location_url ?? '',
+        capacity: mission.capacity ?? ''
+      });
+      setRegistrationInfo({
+        count: mission.registered_count,
+        spotsLeft: mission.spots_left ?? null,
+        isOpen: mission.is_registration_open
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось загрузить миссию');
@@ -174,11 +249,20 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
         xp_reward: baseMission.xp_reward,
         mana_reward: baseMission.mana_reward,
         difficulty: baseMission.difficulty,
-        is_active: baseMission.is_active
+        format: baseMission.format,
+        is_active: baseMission.is_active,
+        registration_deadline: toInputDateTime(baseMission.registration_deadline ?? null),
+        starts_at: toInputDateTime(baseMission.starts_at ?? null),
+        ends_at: toInputDateTime(baseMission.ends_at ?? null),
+        location_title: baseMission.location_title ?? '',
+        location_address: baseMission.location_address ?? '',
+        location_url: baseMission.location_url ?? '',
+        capacity: baseMission.capacity ?? ''
       }));
     }
 
     setSelectedId(id);
+    setRegistrationInfo(null);
     void loadMission(id);
   };
 
@@ -222,6 +306,7 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
       xp_reward: Number(form.xp_reward),
       mana_reward: Number(form.mana_reward),
       difficulty: form.difficulty,
+      format: form.format,
       minimum_rank_id: form.minimum_rank_id === '' ? null : Number(form.minimum_rank_id),
       artifact_id: form.artifact_id === '' ? null : Number(form.artifact_id),
       prerequisite_ids: form.prerequisite_ids,
@@ -233,7 +318,14 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
         })),
       branch_id: form.branch_id === '' ? null : Number(form.branch_id),
       branch_order: Number(form.branch_order) || 1,
-      is_active: form.is_active
+      is_active: form.is_active,
+      registration_deadline: toIsoDateTime(form.registration_deadline),
+      starts_at: toIsoDateTime(form.starts_at),
+      ends_at: toIsoDateTime(form.ends_at),
+      location_title: toNullableString(form.location_title),
+      location_address: toNullableString(form.location_address),
+      location_url: toNullableString(form.location_url),
+      capacity: form.capacity === '' ? null : Number(form.capacity)
     };
 
     try {
@@ -313,6 +405,16 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
             </select>
           </label>
           <label>
+            Формат
+            <select value={form.format} onChange={(event) => updateField('format', event.target.value as MissionFormatOption)}>
+              {FORMATS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
             Доступен с ранга
             <select value={form.minimum_rank_id === '' ? '' : String(form.minimum_rank_id)} onChange={(event) => updateField('minimum_rank_id', event.target.value === '' ? '' : Number(event.target.value))}>
               <option value="">Любой ранг</option>
@@ -338,6 +440,54 @@ export function AdminMissionManager({ token, missions, branches, ranks, competen
             <input type="checkbox" checked={form.is_active} onChange={(event) => updateField('is_active', event.target.checked)} /> Миссия активна
           </label>
         </div>
+
+        {form.format === 'offline' && (
+          <fieldset style={{ borderRadius: '16px', border: '1px solid rgba(162, 155, 254, 0.35)', padding: '1rem' }}>
+            <legend style={{ padding: '0 0.5rem' }}>Параметры офлайн-мероприятия</legend>
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+              <label>
+                Дата начала
+                <input type="datetime-local" value={form.starts_at} onChange={(event) => updateField('starts_at', event.target.value)} required />
+              </label>
+              <label>
+                Дата окончания
+                <input type="datetime-local" value={form.ends_at} onChange={(event) => updateField('ends_at', event.target.value)} required />
+              </label>
+              <label>
+                Дедлайн регистрации
+                <input type="datetime-local" value={form.registration_deadline} onChange={(event) => updateField('registration_deadline', event.target.value)} required />
+              </label>
+              <label>
+                Ограничение по местам
+                <input
+                  type="number"
+                  min={1}
+                  value={form.capacity === '' ? '' : String(form.capacity)}
+                  onChange={(event) => updateField('capacity', event.target.value === '' ? '' : Number(event.target.value))}
+                />
+              </label>
+            </div>
+            <label>
+              Локация
+              <input value={form.location_title} onChange={(event) => updateField('location_title', event.target.value)} placeholder="Название площадки" required />
+            </label>
+            <label>
+              Адрес
+              <input value={form.location_address} onChange={(event) => updateField('location_address', event.target.value)} placeholder="Полный адрес" required />
+            </label>
+            <label>
+              Ссылка на карту (опционально)
+              <input type="url" value={form.location_url} onChange={(event) => updateField('location_url', event.target.value)} placeholder="https://..." />
+            </label>
+            {registrationInfo && selectedId !== 'new' && (
+              <p style={{ marginTop: '0.5rem', color: 'var(--text-muted)' }}>
+                Уже зарегистрировано: {registrationInfo.count}
+                {registrationInfo.spotsLeft !== null ? ` · Свободно: ${registrationInfo.spotsLeft}` : ''}
+                {registrationInfo.isOpen ? ' · Регистрация открыта' : ' · Регистрация закрыта'}
+              </p>
+            )}
+          </fieldset>
+        )}
 
         <label>
           Ветка

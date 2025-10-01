@@ -18,9 +18,20 @@ class StoreItemRead(BaseModel):
     description: str
     cost_mana: int
     stock: int
+    image_url: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+class StoreItemUpdate(BaseModel):
+    """Частичное обновление товара."""
+
+    name: Optional[str] = None
+    description: Optional[str] = None
+    cost_mana: Optional[int] = None
+    stock: Optional[int] = None
+    image_url: Optional[str] = None
 
 
 class OrderRead(BaseModel):
