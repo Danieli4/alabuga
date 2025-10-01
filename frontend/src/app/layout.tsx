@@ -29,7 +29,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     ];
   } else {
     links = [
-      { href: '/', label: 'Дашборд' },
       { href: '/onboarding', label: 'Онбординг' },
       { href: '/missions', label: 'Миссии' },
       { href: '/journal', label: 'Журнал' },
@@ -82,9 +81,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               )}
               {session && (
                 <>
-                  <span style={{ color: 'var(--text-muted)', marginLeft: '1rem' }}>
-                    {session.fullName} · {session.role === 'hr' ? 'HR' : 'Пилот'}
-                  </span>
+                  <a href="/profile" style={{ marginLeft: '1rem' }}>
+                    {session.fullName}
+                  </a>
                   <a href="/logout" style={{ fontWeight: 600 }}>
                     Выйти
                   </a>

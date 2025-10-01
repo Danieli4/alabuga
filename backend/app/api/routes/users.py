@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.rank import Rank
 from app.models.user import User, UserRole, UserCompetency
 from app.models.mission import SubmissionStatus
+from app.models.artifact import Artifact
 from app.schemas.progress import ProgressSnapshot
 from app.schemas.rank import RankBase
 from app.schemas.user import (
@@ -18,6 +19,7 @@ from app.schemas.user import (
     UserCompetencyRead,
     UserProfile,
 )
+from app.schemas.artifact import ArtifactRead
 from app.services.rank import build_progress_snapshot
 from app.services.storage import (
     build_photo_data_url,
@@ -182,3 +184,113 @@ def leaderboard(
         )
 
     return leaderboard
+
+
+@router.post("/me/apply-artifact/{artifact_id}", summary="Применить артефакт-модификатор")
+def apply_artifact(
+    artifact_id: int,
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> dict:
+    """Применяет артефакт-модификатор к профилю пользователя."""
+    
+    # Проверяем, что артефакт существует и является модификатором
+    artifact = db.query(Artifact).filter(Artifact.id == artifact_id).first()
+    if not artifact:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Артефакт не найден")
+    
+    if not artifact.is_profile_modifier:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Этот артефакт не является модификатором профиля"
+        )
+    
+    # Проверяем, что у пользователя есть этот артефакт
+    user_artifact = db.query(User).join(User.artifacts).filter(
+        User.id == current_user.id,
+        User.artifacts.any(artifact_id=artifact_id)
+    ).first()
+    
+    if not user_artifact:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="У вас нет этого артефакта"
+        )
+    
+    # Получаем список применённых артефактов
+    applied_ids = []
+    if current_user.applied_artifact_ids:
+        applied_ids = [int(x) for x in current_user.applied_artifact_ids.split(",") if x]
+    
+    # Проверяем, не применён ли уже
+    if artifact_id in applied_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Этот артефакт уже применён"
+        )
+    
+    # Применяем артефакт
+    applied_ids.append(artifact_id)
+    current_user.applied_artifact_ids = ",".join(map(str, applied_ids))
+    
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    
+    return {
+        "message": "Артефакт успешно применён",
+        "artifact_id": artifact_id,
+        "applied_artifacts": applied_ids
+    }
+
+
+@router.delete("/me/unapply-artifact/{artifact_id}", summary="Снять артефакт-модификатор")
+def unapply_artifact(
+    artifact_id: int,
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> dict:
+    """Снимает артефакт-модификатор с профиля пользователя."""
+    
+    # Получаем список применённых артефактов
+    applied_ids = []
+    if current_user.applied_artifact_ids:
+        applied_ids = [int(x) for x in current_user.applied_artifact_ids.split(",") if x]
+    
+    if artifact_id not in applied_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Этот артефакт не применён"
+        )
+    
+    # Снимаем артефакт
+    applied_ids.remove(artifact_id)
+    current_user.applied_artifact_ids = ",".join(map(str, applied_ids)) if applied_ids else None
+    
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    
+    return {
+        "message": "Артефакт успешно снят",
+        "artifact_id": artifact_id,
+        "applied_artifacts": applied_ids
+    }
+
+
+@router.get("/me/applied-artifacts", response_model=list[ArtifactRead], summary="Получить применённые артефакты")
+def get_applied_artifacts(
+    *, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+) -> list[ArtifactRead]:
+    """Возвращает список применённых артефактов-модификаторов."""
+    
+    if not current_user.applied_artifact_ids:
+        return []
+    
+    applied_ids = [int(x) for x in current_user.applied_artifact_ids.split(",") if x]
+    
+    artifacts = db.query(Artifact).filter(Artifact.id.in_(applied_ids)).all()
+    
+    return [ArtifactRead.model_validate(artifact) for artifact in artifacts]

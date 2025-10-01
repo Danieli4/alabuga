@@ -47,6 +47,8 @@ class User(Base, TimestampMixin):
     # Короткая заметка с личной мотивацией — помогает HR при первичном контакте.
     motivation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     profile_photo_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    # Применённые артефакты-модификаторы профиля
+    applied_artifact_ids: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     current_rank = relationship("Rank", back_populates="pilots")
     competencies: Mapped[List["UserCompetency"]] = relationship(

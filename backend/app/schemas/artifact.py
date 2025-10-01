@@ -15,6 +15,10 @@ class ArtifactRead(BaseModel):
     description: str
     rarity: ArtifactRarity
     image_url: str | None = None
+    is_profile_modifier: bool = False
+    background_effect: str | None = None
+    profile_effect: str | None = None
+    modifier_description: str | None = None
 
     class Config:
         from_attributes = True
@@ -27,6 +31,10 @@ class ArtifactCreate(BaseModel):
     description: str
     rarity: ArtifactRarity
     image_url: str | None = None
+    is_profile_modifier: bool = False
+    background_effect: str | None = None
+    profile_effect: str | None = None
+    modifier_description: str | None = None
 
 
 class ArtifactUpdate(BaseModel):
@@ -36,3 +44,7 @@ class ArtifactUpdate(BaseModel):
     description: str | None = None
     rarity: ArtifactRarity | None = None
     image_url: str | None = None
+    is_profile_modifier: bool | None = None
+    background_effect: str | None = None
+    profile_effect: str | None = None
+    modifier_description: str | None = None
