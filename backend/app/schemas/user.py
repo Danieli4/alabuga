@@ -69,6 +69,8 @@ class UserProfile(UserRead):
 
     competencies: list[UserCompetencyRead]
     artifacts: list[UserArtifactRead]
+    profile_photo_uploaded: bool = False
+    profile_photo_updated_at: Optional[datetime] = None
 
 
 class LeaderboardEntry(BaseModel):
@@ -108,6 +110,11 @@ class UserRegister(BaseModel):
     email: EmailStr
     full_name: str
     password: str
-    # Дополнительные сведения помогают персонализировать онбординг и связать пилота с куратором.
-    preferred_branch: Optional[str] = None
     motivation: Optional[str] = None
+
+
+class ProfilePhotoResponse(BaseModel):
+    """Ответ с данными загруженной фотографии."""
+
+    photo: Optional[str] = None
+    detail: Optional[str] = None

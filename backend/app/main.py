@@ -71,6 +71,8 @@ def run_migrations() -> None:
                 conn.execute(text("ALTER TABLE users ADD COLUMN preferred_branch VARCHAR(160)"))
             if "motivation" not in user_columns:
                 conn.execute(text("ALTER TABLE users ADD COLUMN motivation TEXT"))
+            if "profile_photo_path" not in user_columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN profile_photo_path VARCHAR(512)"))
 
             if "passport_path" not in submission_columns:
                 conn.execute(text("ALTER TABLE mission_submissions ADD COLUMN passport_path VARCHAR(512)"))
