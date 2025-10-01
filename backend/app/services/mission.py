@@ -192,6 +192,7 @@ def registration_is_open(
         deadline = deadline.replace(tzinfo=timezone.utc)
 
     if deadline and deadline < current_time:
+
         return False
 
     if mission.capacity is not None and participant_count >= mission.capacity:
