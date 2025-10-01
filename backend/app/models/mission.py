@@ -2,20 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import (
-    Boolean,
-    DateTime,
-    Enum as SQLEnum,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-    UniqueConstraint,
-)
+from sqlalchemy import Boolean, Enum as SQLEnum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -32,13 +22,6 @@ class MissionDifficulty(str, Enum):
     HARD = "hard"
 
 
-class MissionFormat(str, Enum):
-    """Формат проведения миссии."""
-
-    ONLINE = "online"
-    OFFLINE = "offline"
-
-
 class Mission(Base, TimestampMixin):
     """Игровая миссия."""
 
@@ -52,19 +35,6 @@ class Mission(Base, TimestampMixin):
     difficulty: Mapped[MissionDifficulty] = mapped_column(
         SQLEnum(MissionDifficulty), default=MissionDifficulty.MEDIUM, nullable=False
     )
-    format: Mapped[MissionFormat] = mapped_column(
-        SQLEnum(MissionFormat), default=MissionFormat.ONLINE, nullable=False
-    )
-    event_location: Mapped[Optional[str]] = mapped_column(String(160))
-    event_address: Mapped[Optional[str]] = mapped_column(String(255))
-    event_starts_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    event_ends_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    registration_deadline: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    registration_url: Mapped[Optional[str]] = mapped_column(String(512))
-    registration_notes: Mapped[Optional[str]] = mapped_column(Text)
-    capacity: Mapped[Optional[int]] = mapped_column(Integer)
-    contact_person: Mapped[Optional[str]] = mapped_column(String(120))
-    contact_phone: Mapped[Optional[str]] = mapped_column(String(64))
     minimum_rank_id: Mapped[Optional[int]] = mapped_column(ForeignKey("ranks.id"))
     artifact_id: Mapped[Optional[int]] = mapped_column(ForeignKey("artifacts.id"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
@@ -12,18 +12,8 @@ from app.models.user import User, UserRole, UserCompetency
 from app.models.mission import SubmissionStatus
 from app.schemas.progress import ProgressSnapshot
 from app.schemas.rank import RankBase
-from app.schemas.user import (
-    LeaderboardEntry,
-    ProfilePhotoResponse,
-    UserCompetencyRead,
-    UserProfile,
-)
+from app.schemas.user import LeaderboardEntry, UserCompetencyRead, UserProfile
 from app.services.rank import build_progress_snapshot
-from app.services.storage import (
-    build_photo_data_url,
-    delete_profile_photo,
-    save_profile_photo,
-)
 
 router = APIRouter(prefix="/api", tags=["profile"])
 
@@ -39,89 +29,7 @@ def get_profile(
         _ = item.competency
     for artifact in current_user.artifacts:
         _ = artifact.artifact
-
-    profile = UserProfile.model_validate(current_user)
-    profile.profile_photo_uploaded = bool(current_user.profile_photo_path)
-    profile.profile_photo_updated_at = (
-        current_user.updated_at if current_user.profile_photo_path else None
-    )
-    return profile
-
-
-@router.get(
-    "/me/photo",
-    response_model=ProfilePhotoResponse,
-    summary="Получаем фото профиля кандидата",
-)
-def get_profile_photo(
-    *, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
-) -> ProfilePhotoResponse:
-    """Читаем сохранённое изображение и возвращаем его в виде data URL."""
-
-    db.refresh(current_user)
-    if not current_user.profile_photo_path:
-        return ProfilePhotoResponse(photo=None, detail="Фотография не загружена")
-
-    try:
-        photo = build_photo_data_url(current_user.profile_photo_path)
-    except FileNotFoundError:
-        # Если файл удалили вручную, сбрасываем ссылку в базе, чтобы не мешать пользователю загрузить новую.
-        current_user.profile_photo_path = None
-        db.add(current_user)
-        db.commit()
-        return ProfilePhotoResponse(photo=None, detail="Файл не найден")
-
-    return ProfilePhotoResponse(photo=photo)
-
-
-@router.post(
-    "/me/photo",
-    response_model=ProfilePhotoResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Загружаем фото профиля",
-)
-def upload_profile_photo(
-    photo: UploadFile = File(...),
-    *,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> ProfilePhotoResponse:
-    """Сохраняем изображение и возвращаем обновлённый data URL."""
-
-    try:
-        relative_path = save_profile_photo(upload=photo, user_id=current_user.id)
-    except ValueError as error:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
-
-    delete_profile_photo(current_user.profile_photo_path)
-    current_user.profile_photo_path = relative_path
-    db.add(current_user)
-    db.commit()
-    db.refresh(current_user)
-
-    photo_url = build_photo_data_url(relative_path)
-    return ProfilePhotoResponse(photo=photo_url, detail="Фотография обновлена")
-
-
-@router.delete(
-    "/me/photo",
-    response_model=ProfilePhotoResponse,
-    summary="Удаляем фото профиля",
-)
-def delete_profile_photo_endpoint(
-    *, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
-) -> ProfilePhotoResponse:
-    """Удаляем сохранённое фото и очищаем ссылку в профиле."""
-
-    if not current_user.profile_photo_path:
-        return ProfilePhotoResponse(photo=None, detail="Фотография уже удалена")
-
-    delete_profile_photo(current_user.profile_photo_path)
-    current_user.profile_photo_path = None
-    db.add(current_user)
-    db.commit()
-
-    return ProfilePhotoResponse(photo=None, detail="Фотография удалена")
+    return UserProfile.model_validate(current_user)
 
 
 @router.get("/ranks", response_model=list[RankBase], summary="Перечень рангов")

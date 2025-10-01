@@ -10,7 +10,7 @@ type StoreItem = {
   description: string;
   cost_mana: number;
   stock: number;
-  image_url: string | null;
+  image_url?: string | null;
 };
 
 const Card = styled.div`
@@ -18,6 +18,29 @@ const Card = styled.div`
   border-radius: 14px;
   padding: 1.25rem;
   border: 1px solid rgba(108, 92, 231, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+`;
+
+const ItemImage = styled.img`
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid rgba(108, 92, 231, 0.35);
+  background: rgba(108, 92, 231, 0.08);
+`;
+
+const ImagePlaceholder = styled.div`
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+  border: 1px dashed rgba(108, 92, 231, 0.35);
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  background: rgba(108, 92, 231, 0.05);
 `;
 
 type Feedback = { kind: 'success' | 'error'; text: string } | null;
@@ -25,20 +48,6 @@ type Feedback = { kind: 'success' | 'error'; text: string } | null;
 export function StoreItems({ items, token }: { items: StoreItem[]; token?: string }) {
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [message, setMessage] = useState<Feedback>(null);
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-  const resolveImageSrc = (source: string | null) => {
-    if (!source) {
-      return null;
-    }
-    if (source.startsWith('http://') || source.startsWith('https://')) {
-      return source;
-    }
-    if (source.startsWith('/uploads/')) {
-      return `${apiBaseUrl}${source}`;
-    }
-    return source;
-  };
 
   const resolveErrorMessage = (error: unknown) => {
     if (error instanceof Error) {
@@ -81,37 +90,32 @@ export function StoreItems({ items, token }: { items: StoreItem[]; token?: strin
         </p>
       )}
       <div className="grid">
-        {items.map((item) => {
-          const imageSrc = resolveImageSrc(item.image_url);
-          return (
-            <Card key={item.id}>
-              {imageSrc && (
-                <img
-                  src={imageSrc}
-                  alt={item.name}
-                  style={{
-                    width: '100%',
-                    maxHeight: '180px',
-                    borderRadius: '10px',
-                    marginBottom: '1rem',
-                    objectFit: 'cover',
-                  }}
-                />
-              )}
-            <h3 style={{ marginBottom: '0.5rem' }}>{item.name}</h3>
-            <p style={{ color: 'var(--text-muted)' }}>{item.description}</p>
-            <p style={{ marginTop: '1rem' }}>{item.cost_mana} ⚡ · остаток {item.stock}</p>
+        {items.map((item) => (
+          <Card key={item.id}>
+            {item.image_url ? (
+              <ItemImage
+                src={item.image_url}
+                alt={`Изображение товара «${item.name}»`}
+                loading="lazy"
+              />
+            ) : (
+              <ImagePlaceholder>Изображение появится позже</ImagePlaceholder>
+            )}
+            <div>
+              <h3 style={{ marginBottom: '0.5rem' }}>{item.name}</h3>
+              <p style={{ color: 'var(--text-muted)', margin: 0 }}>{item.description}</p>
+            </div>
+            <p style={{ margin: 0 }}>{item.cost_mana} ⚡ · остаток {item.stock}</p>
             <button
               className="primary"
-              style={{ marginTop: '1rem' }}
+              style={{ marginTop: 'auto' }}
               onClick={() => handlePurchase(item.id)}
               disabled={item.stock === 0 || !token || loadingId === item.id}
             >
               {loadingId === item.id ? 'Оформляем...' : 'Получить приз'}
             </button>
-            </Card>
-          );
-        })}
+          </Card>
+        ))}
       </div>
     </div>
   );

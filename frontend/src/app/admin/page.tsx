@@ -68,7 +68,7 @@ interface StoreItemSummary {
   description: string;
   cost_mana: number;
   stock: number;
-  image_url: string | null;
+  image_url?: string | null;
 }
 
 interface SubmissionStats {
@@ -95,24 +95,15 @@ export default async function AdminPage() {
   // Админ-панель доступна только HR-сотрудникам; проверяем роль до загрузки данных.
   const session = await requireRole('hr');
 
-  const [
-    submissions,
-    missions,
-    branches,
-    ranks,
-    competencies,
-    artifacts,
-    stats,
-    storeItems,
-  ] = await Promise.all([
+  const [submissions, missions, branches, ranks, competencies, artifacts, storeItems, stats] = await Promise.all([
     apiFetch<Submission[]>('/api/admin/submissions', { authToken: session.token }),
     apiFetch<MissionSummary[]>('/api/admin/missions', { authToken: session.token }),
     apiFetch<BranchSummary[]>('/api/admin/branches', { authToken: session.token }),
     apiFetch<RankSummary[]>('/api/admin/ranks', { authToken: session.token }),
     apiFetch<CompetencySummary[]>('/api/admin/competencies', { authToken: session.token }),
     apiFetch<ArtifactSummary[]>('/api/admin/artifacts', { authToken: session.token }),
-    apiFetch<AdminStats>('/api/admin/stats', { authToken: session.token }),
     apiFetch<StoreItemSummary[]>('/api/admin/store/items', { authToken: session.token }),
+    apiFetch<AdminStats>('/api/admin/stats', { authToken: session.token })
   ]);
 
   return (
@@ -185,9 +176,9 @@ export default async function AdminPage() {
           competencies={competencies}
           artifacts={artifacts}
         />
+        <AdminStoreManager token={session.token} items={storeItems} />
         <AdminRankManager token={session.token} ranks={ranks} missions={missions} competencies={competencies} />
         <AdminArtifactManager token={session.token} artifacts={artifacts} />
-        <AdminStoreManager token={session.token} items={storeItems} />
       </div>
     </section>
   );

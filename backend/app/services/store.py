@@ -12,6 +12,28 @@ from app.services.journal import log_event
 from app.schemas.store import StoreItemRead
 
 
+def build_store_image_url(relative_path: str | None) -> str | None:
+    """Преобразуем относительный путь в публичный URL."""
+
+    if not relative_path:
+        return None
+    normalized = relative_path.lstrip("/")
+    return f"/uploads/{normalized}"
+
+
+def store_item_to_read(item: StoreItem) -> StoreItemRead:
+    """Готовим схему товара с публичным URL изображения."""
+
+    return StoreItemRead(
+        id=item.id,
+        name=item.name,
+        description=item.description,
+        cost_mana=item.cost_mana,
+        stock=item.stock,
+        image_url=build_store_image_url(item.image_url),
+    )
+
+
 def create_order(db: Session, user: User, item: StoreItem, comment: str | None) -> Order:
     """Пытаемся списать ману и создать заказ."""
 
@@ -39,33 +61,6 @@ def create_order(db: Session, user: User, item: StoreItem, comment: str | None) 
     )
 
     return order
-
-
-def build_public_store_image_url(image_path: str | None) -> str | None:
-    """Формируем публичный URL изображения магазина."""
-
-    if not image_path:
-        return None
-
-    normalized = image_path.strip()
-    if not normalized:
-        return None
-
-    if normalized.startswith(("http://", "https://")):
-        return normalized
-
-    if normalized.startswith("/"):
-        return normalized
-
-    return f"/uploads/{normalized.lstrip('/')}"
-
-
-def store_item_to_read(item: StoreItem) -> StoreItemRead:
-    """Собираем DTO товара с корректной ссылкой на изображение."""
-
-    return StoreItemRead.model_validate(item).model_copy(
-        update={"image_url": build_public_store_image_url(item.image_url)}
-    )
 
 
 def update_order_status(db: Session, order: Order, status_: OrderStatus) -> Order:

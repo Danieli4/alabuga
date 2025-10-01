@@ -46,7 +46,6 @@ class User(Base, TimestampMixin):
     preferred_branch: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
     # Короткая заметка с личной мотивацией — помогает HR при первичном контакте.
     motivation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    profile_photo_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
 
     current_rank = relationship("Rank", back_populates="pilots")
     competencies: Mapped[List["UserCompetency"]] = relationship(

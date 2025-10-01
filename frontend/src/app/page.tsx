@@ -15,7 +15,6 @@ interface ProfileResponse {
     name: string;
     rarity: string;
   }>;
-  profile_photo_uploaded: boolean;
 }
 
 interface ProgressResponse {
@@ -65,8 +64,6 @@ export default async function DashboardPage() {
           mana={profile.mana}
           competencies={profile.competencies}
           artifacts={profile.artifacts}
-          token={session.token}
-          profilePhotoUploaded={profile.profile_photo_uploaded}
           progress={progress}
         />
       </div>

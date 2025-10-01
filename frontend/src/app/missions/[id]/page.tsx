@@ -2,7 +2,6 @@ import { apiFetch } from '../../../lib/api';
 import { requireSession } from '../../../lib/auth/session';
 import { MissionSubmissionForm } from '../../../components/MissionSubmissionForm';
 import { CodingMissionPanel } from '../../../components/CodingMissionPanel';
-import { OfflineMissionRegistration } from '../../../components/OfflineMissionRegistration';
 
 interface MissionDetail {
   id: number;
@@ -11,7 +10,6 @@ interface MissionDetail {
   xp_reward: number;
   mana_reward: number;
   difficulty: string;
-  format: 'online' | 'offline';
   minimum_rank_id: number | null;
   artifact_id: number | null;
   prerequisites: number[];
@@ -27,19 +25,6 @@ interface MissionDetail {
   has_coding_challenges: boolean;
   coding_challenge_count: number;
   completed_coding_challenges: number;
-  event_location?: string | null;
-  event_address?: string | null;
-  event_starts_at?: string | null;
-  event_ends_at?: string | null;
-  registration_deadline?: string | null;
-  registration_url?: string | null;
-  registration_notes?: string | null;
-  capacity?: number | null;
-  contact_person?: string | null;
-  contact_phone?: string | null;
-  submission_status?: 'pending' | 'approved' | 'rejected' | null;
-  registered_participants: number;
-  registration_open: boolean;
 }
 
 async function fetchMission(id: number, token: string) {
@@ -105,40 +90,6 @@ export default async function MissionPage({ params }: MissionPageProps) {
       <h2>{mission.title}</h2>
       <span className="badge">{mission.difficulty}</span>
       <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>{mission.description}</p>
-      {mission.format === 'offline' && (
-        <div className="card" style={{ marginTop: '1rem', background: 'rgba(162, 155, 254, 0.08)' }}>
-          <h3 style={{ marginBottom: '0.5rem' }}>Офлайн событие</h3>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, color: 'var(--text-muted)' }}>
-            {mission.event_location && <li>📍 {mission.event_location}</li>}
-            {mission.event_address && <li>🧭 {mission.event_address}</li>}
-            {mission.event_starts_at && (
-              <li>
-                🗓 Старт: {new Date(mission.event_starts_at).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
-              </li>
-            )}
-            {mission.event_ends_at && (
-              <li>
-                🕘 Завершение: {new Date(mission.event_ends_at).toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-              </li>
-            )}
-            <li>
-              👥 Зарегистрировано: {mission.registered_participants}
-              {mission.capacity ? ` из ${mission.capacity}` : ''}
-            </li>
-            {mission.registration_deadline && (
-              <li>
-                ⏳ Запись до: {new Date(mission.registration_deadline).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
-              </li>
-            )}
-            {mission.registration_notes && <li>ℹ️ {mission.registration_notes}</li>}
-            {mission.registration_open ? (
-              <li style={{ color: 'var(--accent-light)' }}>Регистрация открыта</li>
-            ) : (
-              <li style={{ color: 'var(--error)' }}>Регистрация закрыта</li>
-            )}
-          </ul>
-        </div>
-      )}
       <p style={{ marginTop: '1rem' }}>
         Награда: {mission.xp_reward} XP · {mission.mana_reward} ⚡
       </p>
@@ -191,25 +142,6 @@ export default async function MissionPage({ params }: MissionPageProps) {
           token={session.token}
           initialState={codingState}
           initialCompleted={mission.is_completed}
-        />
-      ) : mission.format === 'offline' ? (
-        <OfflineMissionRegistration
-          missionId={mission.id}
-          token={session.token}
-          locked={!mission.is_available && !mission.is_completed}
-          registrationOpen={mission.registration_open}
-          registeredCount={mission.registered_participants}
-          capacity={mission.capacity}
-          submission={submission ? { id: submission.id, comment: submission.comment, status: submission.status } : null}
-          eventLocation={mission.event_location}
-          eventAddress={mission.event_address}
-          eventStartsAt={mission.event_starts_at}
-          eventEndsAt={mission.event_ends_at}
-          registrationDeadline={mission.registration_deadline}
-          registrationUrl={mission.registration_url}
-          registrationNotes={mission.registration_notes}
-          contactPerson={mission.contact_person}
-          contactPhone={mission.contact_phone}
         />
       ) : (
         <MissionSubmissionForm

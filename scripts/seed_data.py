@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+import base64
 from pathlib import Path
 import os
 import sys
@@ -18,7 +18,7 @@ from app.db.session import SessionLocal
 from app.models.artifact import Artifact, ArtifactRarity
 from app.models.branch import Branch, BranchMission
 from app.models.coding import CodingChallenge
-from app.models.mission import Mission, MissionCompetencyReward, MissionDifficulty, MissionFormat
+from app.models.mission import Mission, MissionCompetencyReward, MissionDifficulty
 from app.models.rank import Rank, RankCompetencyRequirement, RankMissionRequirement
 from app.models.onboarding import OnboardingSlide
 from app.models.store import StoreItem
@@ -28,6 +28,122 @@ from app.models.journal import JournalEntry, JournalEventType
 from app.main import run_migrations
 
 DATA_SENTINEL = settings.sqlite_path.parent / ".seeded"
+
+
+EXCURSION_IMAGE_B64 = (
+    "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"
+    "RU5ErkJggg=="
+)
+
+
+MERCH_IMAGE_B64 = (
+    "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"
+    "RK5CYII="
+)
+
+
+def ensure_store_image(filename: str, encoded: str) -> str:
+    """Создаём файл изображения в uploads/store и возвращаем относительный путь."""
+
+    target = settings.uploads_path / "store" / filename
+    if not target.exists():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(base64.b64decode(encoded))
+    return target.relative_to(settings.uploads_path).as_posix()
 
 
 def seed() -> None:
@@ -169,12 +285,7 @@ def seed() -> None:
             description="Мини-курс из 10 задач для проверки синтаксиса и базовой логики.",
             category="training",
         )
-        offline_branch = Branch(
-            title="Офлайн мероприятия",
-            description="Живые встречи в кампусе и городе",
-            category="event",
-        )
-        session.add_all([branch, python_branch, offline_branch])
+        session.add_all([branch, python_branch])
         session.flush()
 
         # Миссии
@@ -220,67 +331,12 @@ def seed() -> None:
             difficulty=MissionDifficulty.MEDIUM,
             minimum_rank_id=ranks[0].id,
         )
-        now = datetime.now(timezone.utc)
-        mission_campus_tour = Mission(
-            title="Экскурсия по кампусу",
-            description="Познакомьтесь с производственными линиями и учебными площадками вместе с наставником.",
-            xp_reward=140,
-            mana_reward=70,
-            difficulty=MissionDifficulty.EASY,
-            format=MissionFormat.OFFLINE,
-            event_location="Кампус Алабуга Политех",
-            event_address="Республика Татарстан, Елабуга, территория ОЭЗ 'Алабуга'",
-            event_starts_at=now + timedelta(days=3, hours=10),
-            event_ends_at=now + timedelta(days=3, hours=13),
-            registration_deadline=now + timedelta(days=2, hours=18),
-            capacity=25,
-            contact_person="Наталья из HR",
-            contact_phone="+7 (900) 123-45-67",
-            registration_notes="Возьмите паспорт для прохода на территорию.",
-        )
-        mission_sport_day = Mission(
-            title="Спортивный день в технопарке",
-            description="Присоединяйтесь к командным активностям и познакомьтесь с будущими коллегами в неформальной обстановке.",
-            xp_reward=160,
-            mana_reward=90,
-            difficulty=MissionDifficulty.MEDIUM,
-            format=MissionFormat.OFFLINE,
-            event_location="Спортивный центр Алабуги",
-            event_address="Елабуга, проспект Строителей, 5",
-            event_starts_at=now + timedelta(days=7, hours=17),
-            event_ends_at=now + timedelta(days=7, hours=20),
-            registration_deadline=now + timedelta(days=6, hours=12),
-            capacity=40,
-            contact_person="Игорь, координатор мероприятий",
-            contact_phone="+7 (900) 765-43-21",
-            registration_notes="Форма одежды – спортивная. Будет организован трансфер от кампуса.",
-        )
-        mission_open_lecture = Mission(
-            title="Лекция капитана по культуре Алабуги",
-            description="Живой рассказ о миссии компании, ценностях и истории от капитана программы.",
-            xp_reward=180,
-            mana_reward=110,
-            difficulty=MissionDifficulty.MEDIUM,
-            format=MissionFormat.OFFLINE,
-            event_location="Конференц-зал HQ",
-            event_address="Елабуга, ул. Промышленная, 2",
-            event_starts_at=now + timedelta(days=10, hours=15),
-            event_ends_at=now + timedelta(days=10, hours=17),
-            registration_deadline=now + timedelta(days=8, hours=18),
-            capacity=60,
-            contact_person="Алина, программа адаптации",
-            contact_phone="+7 (900) 555-19-82",
-            registration_notes="Перед лекцией будет кофе-брейк, приходите на 15 минут раньше.",
-        )
         session.add_all([
             mission_documents,
             mission_resume,
             mission_interview,
             mission_onboarding,
             mission_python_basics,
-            mission_campus_tour,
-            mission_sport_day,
-            mission_open_lecture,
         ])
         session.flush()
 
@@ -311,21 +367,6 @@ def seed() -> None:
                     competency_id=competencies[2].id,
                     level_delta=1,
                 ),
-                MissionCompetencyReward(
-                    mission_id=mission_campus_tour.id,
-                    competency_id=competencies[0].id,
-                    level_delta=1,
-                ),
-                MissionCompetencyReward(
-                    mission_id=mission_sport_day.id,
-                    competency_id=competencies[3].id,
-                    level_delta=1,
-                ),
-                MissionCompetencyReward(
-                    mission_id=mission_open_lecture.id,
-                    competency_id=competencies[5].id,
-                    level_delta=1,
-                ),
             ]
         )
 
@@ -336,9 +377,6 @@ def seed() -> None:
                 BranchMission(branch_id=branch.id, mission_id=mission_interview.id, order=3),
                 BranchMission(branch_id=branch.id, mission_id=mission_onboarding.id, order=4),
                 BranchMission(branch_id=python_branch.id, mission_id=mission_python_basics.id, order=1),
-                BranchMission(branch_id=offline_branch.id, mission_id=mission_campus_tour.id, order=1),
-                BranchMission(branch_id=offline_branch.id, mission_id=mission_sport_day.id, order=2),
-                BranchMission(branch_id=offline_branch.id, mission_id=mission_open_lecture.id, order=3),
             ]
         )
 
@@ -455,6 +493,9 @@ def seed() -> None:
         )
 
         # Магазин
+        excursion_image = ensure_store_image("excursion.png", EXCURSION_IMAGE_B64)
+        merch_image = ensure_store_image("merch.png", MERCH_IMAGE_B64)
+
         session.add_all(
             [
                 StoreItem(
@@ -462,14 +503,14 @@ def seed() -> None:
                     description="Личный тур по цехам Алабуги",
                     cost_mana=200,
                     stock=5,
-                    image_url="/store/excursion-alabuga.svg",
+                    image_url=excursion_image,
                 ),
                 StoreItem(
                     name="Мерч экипажа",
                     description="Футболка с эмблемой миссии",
                     cost_mana=150,
                     stock=10,
-                    image_url="/store/alabuga-crew-shirt.svg",
+                    image_url=merch_image,
                 ),
             ]
         )

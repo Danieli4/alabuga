@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.journal import JournalEventType
-from app.models.mission import Mission, MissionFormat, MissionSubmission, SubmissionStatus
+from app.models.mission import Mission, MissionSubmission, SubmissionStatus
 from app.models.user import User, UserArtifact, UserCompetency
 from app.services.journal import log_event
 from app.services.rank import apply_rank_upgrade
@@ -172,29 +171,3 @@ def reject_submission(db: Session, submission: MissionSubmission, comment: str |
     )
 
     return submission
-
-
-def registration_is_open(
-    mission: Mission,
-    *,
-    participant_count: int,
-    now: datetime | None = None,
-) -> bool:
-    """Проверяем, доступна ли запись на офлайн-мероприятие."""
-
-    if mission.format != MissionFormat.OFFLINE:
-        return True
-
-    current_time = now or datetime.now(timezone.utc)
-
-    deadline = mission.registration_deadline
-    if deadline and deadline.tzinfo is None:
-        deadline = deadline.replace(tzinfo=timezone.utc)
-
-    if deadline and deadline < current_time:
-        return False
-
-    if mission.capacity is not None and participant_count >= mission.capacity:
-        return False
-
-    return mission.is_active

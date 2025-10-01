@@ -66,6 +66,7 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)) -> Token | di
         full_name=user_in.full_name,
         hashed_password=get_password_hash(user_in.password),
         role=UserRole.PILOT,
+        preferred_branch=user_in.preferred_branch,
         motivation=user_in.motivation,
         current_rank_id=base_rank.id if base_rank else None,
         is_email_confirmed=not settings.require_email_confirmation,
