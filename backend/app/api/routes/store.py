@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_hr
@@ -10,7 +11,8 @@ from app.db.session import get_db
 from app.models.store import Order, OrderStatus, StoreItem
 from app.models.user import User
 from app.schemas.store import OrderCreate, OrderRead, StoreItemRead
-from app.services.store import create_order, update_order_status
+from app.services.store import create_order, serialize_store_item, update_order_status
+from app.services.storage import resolve_store_item_image_path
 
 router = APIRouter(prefix="/api/store", tags=["store"])
 
@@ -20,7 +22,26 @@ def list_items(*, db: Session = Depends(get_db)) -> list[StoreItemRead]:
     """Товары магазина."""
 
     items = db.query(StoreItem).order_by(StoreItem.name).all()
-    return [StoreItemRead.model_validate(item) for item in items]
+    return [serialize_store_item(item) for item in items]
+
+
+@router.get("/items/{item_id}/image", summary="Изображение товара")
+def get_item_image(item_id: int, *, db: Session = Depends(get_db)) -> FileResponse:
+    """Возвращаем изображение товара по его идентификатору."""
+
+    item = db.query(StoreItem).filter(StoreItem.id == item_id).first()
+    if not item or not item.image_url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Изображение не найдено")
+
+    try:
+        file_path = resolve_store_item_image_path(item.image_url)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Изображение недоступно") from exc
+
+    if not file_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Изображение не найдено")
+
+    return FileResponse(file_path)
 
 
 @router.post("/orders", response_model=OrderRead, summary="Создать заказ")

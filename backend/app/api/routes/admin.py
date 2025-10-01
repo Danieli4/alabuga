@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session, selectinload
@@ -39,9 +41,11 @@ from app.schemas.rank import (
     RankUpdate,
 )
 from app.schemas.user import CompetencyBase
-from app.schemas.store import StoreItemCreate, StoreItemRead, StoreItemUpdate
+from app.schemas.store import StoreItemRead
 
 from app.services.mission import approve_submission, registration_is_open, reject_submission
+from app.services.storage import delete_store_item_image, save_store_item_image
+from app.services.store import serialize_store_item
 from app.schemas.admin_stats import AdminDashboardStats, BranchCompletionStat, SubmissionStats
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -141,15 +145,6 @@ def _branch_to_read(branch: Branch) -> BranchRead:
     )
 
 
-def _sanitize_optional(value: str | None) -> str | None:
-    """Обрезаем пробелы и заменяем пустые строки на None."""
-
-    if value is None:
-        return None
-    stripped = value.strip()
-    return stripped or None
-
-
 def _load_rank(db: Session, rank_id: int) -> Rank:
     """Загружаем ранг с зависимостями."""
 
@@ -195,7 +190,7 @@ def admin_store_items(
     """Возвращаем товары магазина для панели HR."""
 
     items = db.query(StoreItem).order_by(StoreItem.name).all()
-    return [StoreItemRead.model_validate(item) for item in items]
+    return [serialize_store_item(item) for item in items]
 
 
 @router.post(
@@ -205,15 +200,19 @@ def admin_store_items(
     summary="Создать товар",
 )
 def admin_store_create(
-    item_in: StoreItemCreate,
+    name: Annotated[str, Form(...)],
+    description: Annotated[str, Form(...)],
+    cost_mana: Annotated[int, Form(...)],
+    stock: Annotated[int, Form(...)],
+    image: UploadFile | None = File(None),
     *,
     db: Session = Depends(get_db),
     current_user=Depends(require_hr),
 ) -> StoreItemRead:
     """Создаём новый товар в магазине."""
 
-    name = item_in.name.strip()
-    description = item_in.description.strip()
+    name = name.strip()
+    description = description.strip()
     if not name or not description:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -223,14 +222,24 @@ def admin_store_create(
     item = StoreItem(
         name=name,
         description=description,
-        cost_mana=item_in.cost_mana,
-        stock=item_in.stock,
-        image_url=_sanitize_optional(item_in.image_url),
+        cost_mana=cost_mana,
+        stock=stock,
+        image_url=None,
     )
     db.add(item)
+    db.flush()
+
+    if image is not None:
+        try:
+            relative_path = save_store_item_image(upload=image, item_id=item.id)
+        except ValueError as exc:
+            db.rollback()
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        item.image_url = relative_path
+
     db.commit()
     db.refresh(item)
-    return StoreItemRead.model_validate(item)
+    return serialize_store_item(item)
 
 
 @router.patch(
@@ -240,7 +249,12 @@ def admin_store_create(
 )
 def admin_store_update(
     item_id: int,
-    item_in: StoreItemUpdate,
+    name: Annotated[str | None, Form(None)],
+    description: Annotated[str | None, Form(None)],
+    cost_mana: Annotated[int | None, Form(None)],
+    stock: Annotated[int | None, Form(None)],
+    remove_image: Annotated[bool, Form(False)],
+    image: UploadFile | None = File(None),
     *,
     db: Session = Depends(get_db),
     current_user=Depends(require_hr),
@@ -251,34 +265,47 @@ def admin_store_update(
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Товар не найден")
 
-    update_data = item_in.model_dump(exclude_unset=True)
-    if "name" in update_data and update_data["name"] is not None:
-        new_name = update_data["name"].strip()
+    if name is not None:
+        new_name = name.strip()
         if not new_name:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Название не может быть пустым",
             )
         item.name = new_name
-    if "description" in update_data and update_data["description"] is not None:
-        new_description = update_data["description"].strip()
+
+    if description is not None:
+        new_description = description.strip()
         if not new_description:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Описание не может быть пустым",
             )
         item.description = new_description
-    if "cost_mana" in update_data and update_data["cost_mana"] is not None:
-        item.cost_mana = update_data["cost_mana"]
-    if "stock" in update_data and update_data["stock"] is not None:
-        item.stock = update_data["stock"]
-    if "image_url" in update_data:
-        item.image_url = _sanitize_optional(update_data["image_url"])
+
+    if cost_mana is not None:
+        item.cost_mana = cost_mana
+
+    if stock is not None:
+        item.stock = stock
+
+    if image is not None:
+        old_path = item.image_url
+        try:
+            new_path = save_store_item_image(upload=image, item_id=item.id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        if old_path and old_path != new_path:
+            delete_store_item_image(old_path)
+        item.image_url = new_path
+    elif remove_image:
+        delete_store_item_image(item.image_url)
+        item.image_url = None
 
     db.add(item)
     db.commit()
     db.refresh(item)
-    return StoreItemRead.model_validate(item)
+    return serialize_store_item(item)
 
 
 @router.get("/missions/{mission_id}", response_model=MissionDetail, summary="Детали миссии")

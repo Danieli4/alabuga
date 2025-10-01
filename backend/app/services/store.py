@@ -9,6 +9,7 @@ from app.models.journal import JournalEventType
 from app.models.store import Order, OrderStatus, StoreItem
 from app.models.user import User
 from app.services.journal import log_event
+from app.schemas.store import StoreItemRead
 
 
 def create_order(db: Session, user: User, item: StoreItem, comment: str | None) -> Order:
@@ -59,3 +60,20 @@ def update_order_status(db: Session, order: Order, status_: OrderStatus) -> Orde
         )
 
     return order
+
+
+def serialize_store_item(item: StoreItem) -> StoreItemRead:
+    """Преобразуем товар в схему ответа с готовой ссылкой на изображение."""
+
+    image_url = None
+    if item.image_url:
+        image_url = f"/api/store/items/{item.id}/image"
+
+    return StoreItemRead(
+        id=item.id,
+        name=item.name,
+        description=item.description,
+        cost_mana=item.cost_mana,
+        stock=item.stock,
+        image_url=image_url,
+    )
