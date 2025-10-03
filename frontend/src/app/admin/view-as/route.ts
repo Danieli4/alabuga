@@ -6,5 +6,10 @@ export async function GET(request: Request) {
   // Благодаря этому HR увидит интерфейс пилота без необходимости заводить отдельную учётку.
   await requireRole('hr');
   enablePilotView();
-  return NextResponse.redirect(new URL('/', request.url));
+
+  const proto = request.headers.get('x-forwarded-proto') ?? 'https';
+  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? 'localhost';
+  const target = `${proto}://${host}/`;
+
+  return NextResponse.redirect(target);
 }

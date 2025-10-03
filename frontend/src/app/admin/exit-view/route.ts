@@ -6,5 +6,9 @@ export async function GET(request: Request) {
   // Cookie `alabuga_view_as` хранит флаг режима просмотра, удаляем его и редиректим в админку.
   await requireRole('hr');
   disablePilotView();
-  return NextResponse.redirect(new URL('/admin', request.url));
+
+  const proto = request.headers.get('x-forwarded-proto') ?? 'https'; const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? 'localhost'; const 
+  target = `${proto}://${host}/admin`;
+
+  return NextResponse.redirect(target);;
 }

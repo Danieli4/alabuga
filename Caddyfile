@@ -1,0 +1,24 @@
+alabuga.hchm.ru {
+    encode zstd gzip
+
+    # /api/* → на backend:8000
+    # handle_path СРЕЗАЕТ префикс /api перед проксированием,
+    # поэтому если твой API живёт на корне (/auth, /users...), всё будет работать.
+    handle_path /api/* {
+        reverse_proxy backend:8000
+    }
+
+    # всё остальное — на фронт (Next) на 3000
+    handle {
+        reverse_proxy frontend:3000 {
+            header_up Host {http.request.host}
+            header_up X-Forwarded-Host {http.request.host}
+            header_up X-Forwarded-Proto {http.request.scheme}
+        }
+    }
+
+    log {
+        output stdout
+        format console
+    }
+}
