@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { apiFetch } from '../../lib/api';
+import { apiFetch, clientApiUrl } from '../../lib/api';
 
 type Submission = {
   mission_id: number;
@@ -29,6 +29,69 @@ export function AdminSubmissionCard({ submission, token }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState<'approve' | 'reject' | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const downloadDocument = async (path: string | null, fallbackName: string) => {
+    if (!path) {
+      return;
+    }
+
+    try {
+      setError(null);
+      const response = await fetch(`${clientApiUrl}${path}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') ?? '';
+        if (contentType.includes('application/json')) {
+          try {
+            const data = await response.json();
+            const detail = data?.detail ?? data?.message ?? data?.error;
+            throw new Error(detail ? String(detail) : `Не удалось скачать файл (${response.status}).`);
+          } catch (err) {
+            if (err instanceof Error) {
+              throw err;
+            }
+            throw new Error(`Не удалось скачать файл (${response.status}).`);
+          }
+        }
+
+        const text = await response.text();
+        throw new Error(text || `Не удалось скачать файл (${response.status}).`);
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get('content-disposition') ?? '';
+
+      let filename = fallbackName;
+      const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+      if (utf8Match && utf8Match[1]) {
+        try {
+          filename = decodeURIComponent(utf8Match[1]);
+        } catch {
+          filename = utf8Match[1];
+        }
+      } else {
+        const asciiMatch = disposition.match(/filename="?([^";]+)"?/i);
+        if (asciiMatch && asciiMatch[1]) {
+          filename = asciiMatch[1];
+        }
+      }
+
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось скачать файл');
+    }
+  };
 
   const handleAction = async (action: 'approve' | 'reject') => {
     setLoading(action);
@@ -63,13 +126,52 @@ export function AdminSubmissionCard({ submission, token }: Props) {
         <strong>Документы кандидата:</strong>
         <ul style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0' }}>
           <li>
-            Паспорт: {submission.passport_url ? <a href={submission.passport_url} target="_blank" rel="noreferrer">скачать</a> : 'нет файла'}
+            Паспорт:{' '}
+            {submission.passport_url ? (
+              <a
+                href={submission.passport_url}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void downloadDocument(submission.passport_url, 'passport');
+                }}
+              >
+                скачать
+              </a>
+            ) : (
+              'нет файла'
+            )}
           </li>
           <li>
-            Фото: {submission.photo_url ? <a href={submission.photo_url} target="_blank" rel="noreferrer">скачать</a> : 'нет файла'}
+            Фото:{' '}
+            {submission.photo_url ? (
+              <a
+                href={submission.photo_url}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void downloadDocument(submission.photo_url, 'photo');
+                }}
+              >
+                скачать
+              </a>
+            ) : (
+              'нет файла'
+            )}
           </li>
           <li>
-            Резюме (файл): {submission.resume_url ? <a href={submission.resume_url} target="_blank" rel="noreferrer">скачать</a> : 'нет файла'}
+            Резюме (файл):{' '}
+            {submission.resume_url ? (
+              <a
+                href={submission.resume_url}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void downloadDocument(submission.resume_url, 'resume');
+                }}
+              >
+                скачать
+              </a>
+            ) : (
+              'нет файла'
+            )}
           </li>
           <li>
             Резюме (ссылка): {submission.resume_link ? <a href={submission.resume_link} target="_blank" rel="noreferrer">открыть</a> : 'не указана'}
