@@ -9,7 +9,7 @@ help: ## Show this help message
 
 # Docker build commands
 build: ## Build Docker containers
-	docker compose build
+	DOCKER_BUILDKIT=0 docker compose build
 
 # Database commands
 migrate: build ## Run database migrations in Docker
