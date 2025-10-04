@@ -1,5 +1,6 @@
 'use client';
 
+import type { CSSProperties } from 'react';
 import styled from 'styled-components';
 
 export interface MissionSummary {
@@ -52,9 +53,13 @@ export function MissionList({ missions }: { missions: MissionSummary[] }) {
         const locked = !mission.is_available && !completed;
         const primaryClass = completed ? 'secondary' : locked ? 'secondary' : 'primary';
         const linkDisabled = locked;
+        const isRejected = mission.submission_status === 'rejected';
         let actionLabel = 'Открыть брифинг';
         if (completed) {
           actionLabel = mission.format === 'offline' ? 'Регистрация подтверждена' : 'Миссия выполнена';
+        } else if (isRejected) {
+          actionLabel =
+            mission.format === 'offline' ? 'Обновить заявку' : 'Исправить и отправить отчёт';
         } else if (!mission.is_available) {
           actionLabel = 'Заблокировано';
         } else if (mission.format === 'offline') {
@@ -79,8 +84,21 @@ export function MissionList({ missions }: { missions: MissionSummary[] }) {
             }
           : null;
 
+        const cardStyle: CSSProperties | undefined = (() => {
+          if (completed) {
+            return { opacity: 0.85 };
+          }
+          if (isRejected) {
+            return {
+              borderColor: 'rgba(255, 118, 117, 0.55)',
+              boxShadow: '0 0 0 1px rgba(255, 118, 117, 0.35)',
+            };
+          }
+          return undefined;
+        })();
+
         return (
-          <Card key={mission.id} style={completed ? { opacity: 0.85 } : undefined}>
+          <Card key={mission.id} style={cardStyle}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span className="badge">{mission.difficulty}</span>
               {completed && <span style={{ color: '#55efc4', fontSize: '0.85rem' }}>✓ завершено</span>}
@@ -88,6 +106,18 @@ export function MissionList({ missions }: { missions: MissionSummary[] }) {
             {mission.requires_documents && !completed && (
               <p style={{ marginTop: '0.25rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                 🗂 Требуется загрузка документов
+              </p>
+            )}
+            {isRejected && !completed && (
+              <p
+                style={{
+                  marginTop: '0.5rem',
+                  color: 'var(--error)',
+                  fontSize: '0.9rem',
+                  fontWeight: 500,
+                }}
+              >
+                HR отклонил последнюю отправку — откройте миссию, чтобы внести правки и отправить снова.
               </p>
             )}
             {mission.format === 'offline' && offlineDetails?.date && (

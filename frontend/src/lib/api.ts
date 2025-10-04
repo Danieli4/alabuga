@@ -1,6 +1,9 @@
 const CLIENT_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const SERVER_API_URL = process.env.NEXT_INTERNAL_API_URL || CLIENT_API_URL;
 
+export const clientApiUrl = CLIENT_API_URL;
+export const serverApiUrl = SERVER_API_URL;
+
 export interface RequestOptions extends RequestInit {
   authToken?: string;
 }

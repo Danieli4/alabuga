@@ -24,21 +24,30 @@ interface MissionSubmissionFormProps {
 }
 
 export function MissionSubmissionForm({ missionId, token, locked = false, submission, completed = false, requiresDocuments = false }: MissionSubmissionFormProps) {
-  const [comment, setComment] = useState(submission?.comment ?? '');
+  const [currentSubmission, setCurrentSubmission] = useState<ExistingSubmission | null>(submission ?? null);
+  const [comment, setComment] = useState(() => {
+    if (submission?.status === 'rejected') {
+      return '';
+    }
+    return submission?.comment ?? '';
+  });
   const [proofUrl, setProofUrl] = useState(submission?.proof_url ?? '');
   const [resumeLink, setResumeLink] = useState(submission?.resume_link ?? '');
   const initialStatus = submission?.status === 'approved' || completed
     ? 'Миссия уже зачтена. Вы можете просматривать прикреплённые документы.'
-    : null;
+    : submission?.status === 'rejected'
+      ? 'Предыдущая отправка отклонена. Проверьте комментарий HR и отправьте отчёт заново.'
+      : null;
   const [status, setStatus] = useState<string | null>(initialStatus);
   const [loading, setLoading] = useState(false);
-  const [currentSubmission, setCurrentSubmission] = useState<ExistingSubmission | null>(submission ?? null);
 
   const passportInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const resumeInputRef = useRef<HTMLInputElement>(null);
 
   const isApproved = completed || currentSubmission?.status === 'approved';
+  const isRejected = !completed && currentSubmission?.status === 'rejected';
+  const reviewerComment = isRejected && currentSubmission?.comment ? currentSubmission.comment : null;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -131,6 +140,30 @@ export function MissionSubmissionForm({ missionId, token, locked = false, submis
   return (
     <form className="card" onSubmit={handleSubmit} style={{ marginTop: '2rem' }} encType="multipart/form-data">
       <h3>Отправить отчёт</h3>
+      {isRejected && (
+        <div
+          style={{
+            marginTop: '0.75rem',
+            padding: '0.75rem',
+            borderRadius: '12px',
+            border: '1px solid rgba(255, 118, 117, 0.45)',
+            background: 'rgba(255, 118, 117, 0.08)',
+            color: 'var(--error)',
+          }}
+        >
+          <strong>Предыдущая отправка отклонена.</strong>
+          {reviewerComment && (
+            <p style={{ marginTop: '0.5rem', whiteSpace: 'pre-wrap' }}>
+              Комментарий HR: {reviewerComment}
+            </p>
+          )}
+          {!reviewerComment && (
+            <p style={{ marginTop: '0.5rem' }}>
+              Проверьте материалы и приложите обновлённый отчёт.
+            </p>
+          )}
+        </div>
+      )}
       {requiresDocuments && (
         <p style={{ marginTop: '0.25rem', color: 'var(--text-muted)' }}>
           Для этой миссии необходимо приложить паспорт, фотографию и резюме. Файлы попадут напрямую в панель HR.
